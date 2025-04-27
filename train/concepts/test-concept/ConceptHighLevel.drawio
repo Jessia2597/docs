@@ -1,0 +1,25 @@
+<mxfile host="Electron" modified="2023-12-04T13:21:16.843Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.2 Chrome/114.0.5735.289 Electron/25.9.4 Safari/537.36" etag="QejI839SiBc106K448UT" version="22.1.2" type="device">
+  <diagram name="Page-1" id="wNkL87u23bNqylnkdgrO">
+    <mxGraphModel dx="1194" dy="767" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-1" value="Strategy" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="250" y="250" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-2" value="Roles &amp;amp; Responsibilities" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="370" y="250" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-6" value="Infrastructure" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#fa6800;fontColor=#000000;strokeColor=#C73500;" vertex="1" parent="1">
+          <mxGeometry x="490" y="250" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-7" value="Test Cases" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#e51400;fontColor=#ffffff;strokeColor=#B20000;" vertex="1" parent="1">
+          <mxGeometry x="610" y="250" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-8" value="Defect Handling" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#a0522d;fontColor=#ffffff;strokeColor=#6D1F00;" vertex="1" parent="1">
+          <mxGeometry x="730" y="250" width="130" height="50" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

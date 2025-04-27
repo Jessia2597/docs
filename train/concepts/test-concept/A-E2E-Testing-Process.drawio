@@ -1,0 +1,40 @@
+<mxfile host="Electron" modified="2023-12-04T13:51:24.852Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.2 Chrome/114.0.5735.289 Electron/25.9.4 Safari/537.36" etag="gbG3WuiU513hYKKbcpua" version="22.1.2" type="device">
+  <diagram name="Page-1" id="wNkL87u23bNqylnkdgrO">
+    <mxGraphModel dx="1194" dy="767" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-9" value="DevOps" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;size=20;flipV=0;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="220" width="540" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-1" value="Acceptance&lt;br&gt;Criteria" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="250" y="250" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-2" value="Behaviour Driven Design (E2E)" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="370" y="250" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-6" value="CI/CD integration&lt;br&gt;(Gitlab)" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#fa6800;fontColor=#000000;strokeColor=#C73500;" vertex="1" parent="1">
+          <mxGeometry x="640" y="270" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-7" value="Test Execution&lt;br&gt;(Jenkins)" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#e51400;fontColor=#ffffff;strokeColor=#B20000;" vertex="1" parent="1">
+          <mxGeometry x="760" y="270" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="DOeEgPMNfsRkGOxdd1kB-8" target="DOeEgPMNfsRkGOxdd1kB-11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="295" />
+              <mxPoint x="1020" y="250" />
+              <mxPoint x="585" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-8" value="Test Reporting&lt;br&gt;Defect Handling" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#a0522d;fontColor=#ffffff;strokeColor=#6D1F00;" vertex="1" parent="1">
+          <mxGeometry x="880" y="270" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="DOeEgPMNfsRkGOxdd1kB-11" value="Development" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="520" y="270" width="130" height="50" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

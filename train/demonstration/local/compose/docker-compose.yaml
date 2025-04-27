@@ -1,0 +1,111 @@
+version: "3.7"
+services:
+
+  # Startup our own internal DNS Server first.
+  coredns:
+    image: coredns/coredns
+    container_name: dns-root-server
+    hostname: dns-root-server
+    command: -conf /Corefile
+    volumes:
+      - ./config/Corefile:/Corefile
+    networks:
+      train:
+        ipv4_address: 172.30.0.2
+
+  # Next start keycloak
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:latest
+    depends_on:
+      - coredns
+    ports:
+      - 8000:8080
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=devpassword
+    volumes:
+      - ./config/keycloak/realms/:/opt/keycloak/data/import
+    command: ["start-dev", "--import-realm", "--hostname-url=http://keycloak:8080/"]
+    networks:
+      train:
+        ipv4_address: 172.30.0.3
+
+  ipfs:
+    container_name: ipfs
+    image: 'ipfs/kubo:v0.23.0'
+    ports:
+      - "4001:4001"
+      - "5001:5001"
+    user: "ipfs"
+    command: [ "daemon", "--enable-pubsub-experiment" ]
+    networks:
+      train:
+        ipv4_address: 172.30.0.4
+
+
+  fed1-dns:
+    image: node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/train/dns-zone-manager-nsd:master
+    container_name: fed1-dns
+    ports:
+      - 16001:16001
+    env_file:
+      - ./config/zonemanager.env
+    volumes:
+      - fed1-zonedata:/var/lib/zonemgr
+      - ./config/zonemanagerAuth.conf:/usr/lib/zonemgr/auth.conf
+    networks:
+      train:
+        ipv4_address: 172.30.1.1
+
+  fed1-tfm:
+    container_name: fed1-tfm
+    image: node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/train/tspa-service:latest
+    environment:
+       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/gxfs-dev-test
+       TSPA_IPFS_RCP_API: /ip4/172.30.0.4/tcp/5001
+       ZONEMANAGER_ADDRESS: http://fed1-dns:16001
+       ZONEMANAGER_TOKEN_SERVER_URL: http://keycloak:8080/realms/gxfs-dev-test/protocol/openid-connect/token
+       ZONEMANAGER_GRANT_TYPE: client_credentials
+       ZONEMANAGER_CLIENT_ID: xfsctest
+       ZONEMANAGER_CLIENT_SECRET: 6GRWUQXZ3p6U0gzVIp0mInAdf1zWuQEJ
+       REQUEST_GET_MAPPING: http://fed1-tfm:8080/tspa-service/tspa/v1/
+       STORAGE_TYPE_TRUSTLIST: IPFS
+    ports:
+      - "16003:8080"
+    networks:
+      train:
+        ipv4_address: 172.30.1.2
+
+  ttv-server:
+    container_name: ttv-server
+    image: node-654e3bca7fbeeed18f81d7c7.ps-xaas.io/train/trusted-content-resolver-service:latest
+    #image: local/ttv:latest
+    environment:
+       TCR_DID_BASE_URI: http://uni-resolver-web:8080/1.0
+       #TCR_DID_CONFIG_PATH: src/main/resources/uni-resolver-config.json
+       TCR_DID_CACHE_SIZE: 100
+       TCR_DID_CACHE_TIMEOUT: 5M
+       TCR_DNS_HOSTS: 172.30.0.2
+       TCR_DNS_TIMEOUT: 5000
+       TCR_DNS_DNSSEC_ENABLED: false
+       #TCR_DNS_DNSSEC_ROOTPATH:
+       TCR_TL_CACHE_SIZE: 0
+       TCR_TL_CACHE_TIMEOUT: 5M
+    ports:
+      - "8887:8087"
+    networks:
+      train:
+        ipv4_address: 172.30.1.3
+
+volumes:
+  fed1-zonedata:
+    name: fed1-zonedata
+
+networks:
+  train:
+    external: false
+    name: train
+    ipam:
+      config:
+        - subnet: 172.30.0.1/16
