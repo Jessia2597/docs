@@ -1,0 +1,15 @@
+site_name: XFSC-spec-2 
+site_url: https://gitlab.eclipse.org/eclipse/xfsc/xfsc-spec-2
+theme: readthedocs
+nav:
+   - Index: index.md
+   - Notarization API Extension: notare/notare.md
+   - Trust Management Infrastructure: train/train.md
+   - Trust Management Infrastructure - Concept Document: traincd/train.md
+   - Organization Credential Manager Extension: ocme1/ocme1.md
+   - Organization Credential Manager W-STACK: ocmwstack/ocmwstack.md
+   - Cloud Personal Credential Manager: pcmcloud/pcmcloud.md
+   - Personal Credential Manager Extension 1: pcme1/pcme1.md
+   - Trust Services API Extension: tsae1/tsae1.md
+
+toc: true
