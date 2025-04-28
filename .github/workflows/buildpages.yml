@@ -1,0 +1,38 @@
+# .github/workflows/build-mkdocs-folders.yml
+
+name: Build all MkDocs projects into /docs
+
+on:
+  push:
+    branches:
+      - gh-pages  # <<< NUR bei Push/Merge auf gh-pages Branch
+
+jobs:
+  build-all-mkdocs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Install MkDocs
+        run: pip install mkdocs
+
+      - name: Build all MkDocs projects
+        run: |
+          mkdir -p docs
+          
+          # Suche alle Ordner mit einer mkdocs.yml
+          for mkdocs_file in $(find . -name "mkdocs.yml"); do
+            dir=$(dirname "$mkdocs_file")
+            name=$(basename "$dir")
+            
+            echo "Building MkDocs project in $dir..."
+
+            mkdocs build --clean --site-dir "../docs/$name" -f "$mkdocs_file"
+          done
