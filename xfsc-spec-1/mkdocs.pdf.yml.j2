@@ -1,0 +1,19 @@
+{%- set cover_title -%}
+   {%- if CI_COMMIT_TAG is defined -%}
+      {{CI_COMMIT_TAG}} Release
+   {%- else -%}
+      DRAFT version {{CI_COMMIT_SHORT_SHA | default("local")}}
+   {%- endif -%}
+{% endset -%}
+site_name: Gaia-X - {{ cover_title }}
+repo_url: {% block rep_url %}{{CI_PROJECT_URL}}{% endblock %}
+edit_uri: {% block edit_url %}edit/master/{{DOCS_DIR}}/{% endblock %}
+docs_dir: {% block docs_dir %}{{DOCS_DIR}}{% endblock %}
+docs_dir: docs
+site_dir: public
+theme:
+    name: null
+    custom_dir: 'template_pdf/custom_theme_pdf/'
+
+markdown_extensions:
+  - footnotes

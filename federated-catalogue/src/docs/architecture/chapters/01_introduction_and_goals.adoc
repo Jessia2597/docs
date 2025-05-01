@@ -1,0 +1,47 @@
+:jbake-title: Introduction and Goals
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 1
+:filename: /chapters/01_introduction_and_goals.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-introduction-and-goals]]
+== Introduction and Goals
+
+This document gives a short overview of the architectural design decisions for the implementation of the Gaia-X Federated Catalogue.
+
+=== Requirements Overview
+
+The requirements for implementing the Gaia-X Federated Catalogue are given in its specification documentfootnote:[Gaia-X Federation Services. Core Catalogue Features. 2021. https://www.gxfs.eu/download/1740/]. Individual requirements were changed during the implementation in mutual agreement, for reasons including the following:
+
+* The specification of a requirement turned out to be unsatisfiable for conceptual or practical reasons.
+* The understanding of an underlying concept had evolved during the further work of the Gaia-X Technical Committee and its working groups after the original publication of the requirements specification.
+
+
+=== Quality Goals
+
+Quality goals regarding, e.g., performance, safety, security, and standards conformance have been defined in Section 3 of the requirements specification.
+
+=== Stakeholders
+
+[options="header",cols="1,2,2"]
+|===
+|Role/Name|Contact|Expectations
+| leader and implementation partners of the GXFS project | https://gxfs.eu/ | The implementation conforms to the requirements, i.e., the functionality behind the interfaces is implemented as specified, thus facilitating integration of the Federated Catalogue with other Federation Services.  The architecture facilitates this conformance by bridging between the high level of the requirements specification and concrete design and implementation choices.
+| Participants in a Gaia-X ecosystem | n/a | Participants can interact with a Catalogue as expected.
+|===
+
+=== Assumptions
+
+Since this project is conducted in an early stage of the Gaia-X development there is no experience how Self-Descriptions will look like in practice. Therefore, several assumptions regarding the characteristics of Self-Descriptions have to be made. These assumptions will be explained in this section.
+
+* Self-Descriptions usually contain 20 to 50 claims. Bigger Self-Descriptions rarely exist. Usually, the more complex Self-Descriptions are built by a set of complementing Verifiable Credentials.
+* Most claims affecting a service offering or a participant are provided by the provider/participant itself. These claims are self-signed. However, this is no issue because these claims are not critical for trust, compliance, etc. – mere technical information. A small set of the claims (approx. 5-10) are signed by other issues providing trust-relevant information.
+* Most claims are flat triples containing the service or the participant as the subject. However, claims can consist of blank notes to represent more complex expressions. 
+* The claims are based on the central Gaia-X ontology, which defines approximately 15 key classes which are used frequently. Further, these key classes are extended both classes for use in special situations. The ontology will be extended by a centrally defined vocabulary. Additionally, a federation might add similar-sized ontology and vocabulary for the domain-specific use cases.
+* Besides that, there are some properties of the central Gaia-X classes that have explicit cardinality constraints (other than default zero to infinity). Consideration might define further cardinality constraints to meet domain requirements.
+* The Self-Description of a service or participant is likely to be updated multiple times a day to every few months. In big federations, this might lead to updates of Self-Descriptions every minute. Besides that, new ontology, shapes, and vocabulary might come every few months – updates might be more frequent (once a day).
+* The federation-specific features like specific classes might not be used by all federations. they stick to the central Gaia-X classes.

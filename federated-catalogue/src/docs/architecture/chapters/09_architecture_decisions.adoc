@@ -1,0 +1,30 @@
+:jbake-title: Architecture Decisions
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 9
+:filename: /chapters/09_architecture_decisions.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-design-decisions]]
+== Architecture Decisions
+
+=== ADR 1: Monolithic vs. Microservices
+**Context:** Are the subcomponents implemented as separate micro-services or are they integrated into a single service.
+
+1. **Microservice**: Usage of different technologies possible, independent development, scalability, ...
+2. **Single Service**: Easier maintainability, understanding, easier to handle concurrency (especially conflicting operations like adding SD and changing schema)
+
+**Decision:** Implement catalogue as a modular, single service. It's easier to integrate the different components. Most components are called by only one other component. A distributed microservice implementation only introduces additional communication overhead. Scalability issues are not expected, since the main load is read-only and time consuming operations are queries against the graph db, which is a separate component that can be horizontally scaled.
+Therefore, the Federated Catalogue is considered as microservice application within the GXFS ecosystem. The federated catalogue itself also consists of different, individually deployable components.
+
+=== ADR 2: Intra Catalogue communication
+**Context:** If the catalogue is implemented as one component, the subcomponents can communication using Method-calls. Another option is to implement an internal event-/notification system, whereby each component registers itself as a listener on other components or a central message bus.
+
+1. **Method-Calls:** Easy to implement, clear structure and easy to debug. Limited options for extendability.
+2. **Event-based:** Highly plugable systems, where new components can be added without other components knowing that. Additional indirection which causes complexity. Harder to debug.
+
+**Decision:** The Catalogue es a static, pre-specified and configured component. Adding plugins during runtime is not needed. The maintainability of the catalogue is more important than additional flexibility.
+

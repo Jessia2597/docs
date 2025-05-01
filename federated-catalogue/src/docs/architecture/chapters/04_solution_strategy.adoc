@@ -1,0 +1,60 @@
+:jbake-title: Solution Strategy
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 4
+:filename: /chapters/04_solution_strategy.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-solution-strategy]]
+== Solution Strategy
+
+This chapter describes some basic concepts and details, when handling Self-Descriptions and Schemas. They are needed to understand the details
+
+=== Self-Descriptions
+
+==== Granularity of Self-Descriptions
+
+According to the Gaia-X Architecture Documentfootnote:[https://gaia-x.gitlab.io/technical-committee/architecture-document//self-description/[Gaia-X Architecture Document / Self-Description Definition]],Self-Descriptions describe entities from the Gaia-X Conceptual Modelfootnote:[https://gaia-x.gitlab.io/technical-committee/architecture-document//conceptual_model/[Gaia-X Architecture Document / Conceptual Model]].  In its 22.04 version, on which the architecture of the first version of the Federated Catalogue is based, these were __Participant__ and __Service Offering__.
+
+The Federated Catalogue does not support Self-Descriptions of __Resource__s in a free-floating way, i.e., directly submitted to the Catalogue rather than embedded into the Self-Description of a __Service Offering__.  This is because in Gaia-X, __Resources__ (e.g., data, software, hardware), are not provided directly for consumption, but composed into __Service Offerings__.  In a similar way, structured objects such as the postal address of a __Participant__ do not occur stand-alone, but only within a __Participant__ Self-Description.
+
+Acknowledging the extensibility of schemas, the Federated Catalogue accepts not only Self-Descriptions of immediate instances of the __Participant__ and __Service Offering__ classes, but also of instances of classes that a schema defines to be their subclasses.
+
+==== Identification of Self-Descriptions
+
+Self-Descriptions are Verifiable Presentations according to the Verifiable Credentials Data Modelfootnote:[https://www.w3.org/TR/vc-data-model/[Verifiable Credentials Data Model v1.1. W3C Recommendation 03 March 2022]. Further details on how to use this data model in Gaia-X are specified in the Identity, Credential and Access Management Document (https://gaia-x.gitlab.io/technical-committee/federation-services/icam/credential_format/[GXFSv2 - Identity and Access Management / Credential format]).].  Thus, they are immutable and especially they are protected by cryptographic signatures. Therefore, a Self-Description cannot simply be updated. To change the definition of some entity described by a Self-Description, e.g., of a Service Offering, the Self-Description must be replaced by a new one. Therefore, any such entity needs a unique identifier. There can be only one __active__ Self-Description (in other words, a set of claims) per identifier. For our design of the Federated Catalogue, we consider the __credentialSubject__ the  unique identifier of a Description. That is, we assume that, in case one Self-Description, i.e., one Verifiable Presentation, contains multiple Verifiable Credetials, all of them state claims about the same subject.footnote:[Version 22.10 of the Gaia-X Identity, Credential and Access Management Document (https://gaia-x.gitlab.io/technical-committee/federation-services/icam/credential_format/[GXFSv2 - Identity and Access Management / Credential format]) leaves this open and thus also allow Verifiable Presentations to contain Verifiable Credentials talking about multiple different subjects. We do not explicitly contradict this point but require that such Self-Descriptions shall not be used __for the purpose of listing Participants and their Service Offerings in a Catalogue__, i.e., that any such Self-Descriptions shall be split into multiple separate ones per subject in a pre-processing step before submission to a Catalogue.]
+
+This limitation to one subject per Self-Description means that, if a valid Self-Description is submitted to the Catalogue, it will invalidate all claims of the currently active Self-Description with the same __credentialSubject__. To identify any SD in the Catalogue, the `id` of the VC within the SD can be used. To track the (maybe invalidated) SDs affecting one Service or Participant, their ID and the __credentialSubject__ can be used.
+
+As a consequence, the current implementation of the Federated Catalogue ignores the IDs of the Verifiable Presentations / Verifiable Credentials themselves; however, future implementations may use them.
+
+=== Schema
+
+==== Schema Types
+The term Schema is the generic term for either an ontology (RDF Schema 1.1footnote:[https://www.w3.org/TR/rdf-schema/[RDF Schema 1.1. W3C Recommendation 25 February 2014]] or OWL 2footnote:[https://www.w3.org/TR/owl2-overview/[OWL 2 Web Ontology Language
+Document Overview (Second Edition). W3C Recommendation 11 December 2012]]), shapes graph (SHACL 1.0footnote:[https://www.w3.org/TR/shacl/[Shapes Constraint Language (SHACL). W3C Recommendation 20 July 2017]]) or controlled vocabulary (SKOSfootnote:[https://www.w3.org/TR/skos-reference/[SKOS Simple Knowledge Organization System
+Reference. W3C Recommendation 18 August 2009]]). There is no need to have a relation between the ontology, shape graph and vocabulary, as all of these may evolve independently. Therefore, an identification of a schema as a whole is not needed. So, for the sake of simplicity, those files where considered individually.
+
+The classes and properties used in the Self-Descriptions are defined in underlying information models called ontologies.
+In combination with the shapes graph these ontologies (which can come in the form of a complex, and possibly quite formal collection of terms or in the form of
+controlled vocabularies where such strict formalism is not necessarily used) build a schema. It is to be noted that only the shapes graph of the schema are used
+to semantically verify the Self-Description, meaning only the shapes graphs contain constraints on how to model a Self-Description.
+The ontology graphs (including the controlled vocabularies) are solely used to give more context to the information model which is used by the Self-Description.
+To support a good governance of the uploaded schema files, we enforce a few integrity constraints w.r.t. all schema files via the _SD-Sch-NF-*_ acceptance criteria.
+
+==== Schema Validation Checks
+Each schema before adding it, will be analysed. The Analysis process should check first
+if the schema is syntactically and semantically valid instances of RDF-graphs in the
+JSON-LDfootnote:[https://www.w3.org/TR/json-ld11/[JSON-LD 1.1. A JSON-based Serialization for Linked Data. W3C Recommendation 16 July 2020]], Turtlefootnote:[https://www.w3.org/TR/turtle/[RDF 1.1 Turtle. Terse RDF Triple Language. W3C Recommendation 25 February 2014]], and RDF/XMLfootnote:[https://www.w3.org/TR/rdf-syntax-grammar/[RDF 1.1 XML Syntax. W3C Recommendation 25 February 2014]] serializations according to  SD-Sch-F-02.
+
+Afterwards, a check if the schema is a valid SHAPE, ONTOLOGY or VOCABULARY is done.
+Each type has its own restrictions. For example, ONTOLOGY schemas should not contain
+multiple ontology IRIs, and they should always have an Ontology IRI according to SD-Sch-NF-01.
+VOCABULARY Schemas should not contain multiple CONCEPT_SCHEME.
+
+The analysis process should also return an identifier for  ontologies and vocabularies , but not
+for shapes. In addition, extracted terms will be returned for all the schema types, so they
+can be used in the adding and updating process.

@@ -1,0 +1,32 @@
+:jbake-title: Cross-cutting Concepts
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 8
+:filename: /chapters/08_concepts.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-concepts]]
+== Cross-cutting Concepts
+
+=== Backup
+Backing up a running application is a basic administrative operation. The recommended runtime environment for the federated catalogue is Kubernetes. See the previous section for more information. Therefore, to back up the federated catalogue, well known tools can be used.
+
+Data is persisted in the following components:
+
+* Federated Catalogue Server: Self-Description and Schema files (Filesystem)
+* Metadata Store: Self-Description and Schema metadata (PostgreSQL)
+* Graph store: Self-Description graph (Neo4j)
+
+During the deployment it must be ensured that volumes are mounted to store the persistent data in the mentioned components.
+
+The backup can be configured for those volumes as a whole, on a regular basis. In case of any problem, the system can be stopped and completely restored the volume  from its latest backup version.
+
+The details for configuring the backup as well as the backup encryption depends on the Kubernetes distribution, where the service is deployed (e.g., for OpenStack based Kubernetes distributionsfootnote:[https://docs.elastx.cloud/docs/openstack-iaas/guides/volume_backup/[Volume Backup & Restore | Documentation]]).
+
+=== Logging
+The components use ```Slf4j``` for logging. ```Logback``` will be used as implementation.
+
+As default, all components should log to Standard out. Log aggregation is realized by the surrounding environment

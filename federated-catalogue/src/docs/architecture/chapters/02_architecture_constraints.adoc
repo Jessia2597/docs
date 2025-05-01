@@ -1,0 +1,16 @@
+:jbake-title: Architecture Constraints
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 2
+:filename: /chapters/02_architecture_constraints.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-architecture-constraints]]
+== Architecture Constraints
+
+The constraints are written in the specification of the Federated Catalogue.
+
+One main requirement to mention at this place is the requirement that all used components must be compliant with https://www.apache.org/licenses/LICENSE-2.0[Apache License, Version 2.0]

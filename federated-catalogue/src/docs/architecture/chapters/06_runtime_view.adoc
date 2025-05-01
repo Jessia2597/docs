@@ -1,0 +1,944 @@
+:jbake-title: Runtime View
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 6
+:filename: /chapters/06_runtime_view.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-runtime-view]]
+== Runtime View
+
+This chapter first defines a generic workflow for write operations (<<_generic_control_flow_for_write_operations>>). It's followed by the scenarios that implement the API endpoints (<<_list_of_user_runtime_scenarios>>). The next section (<<_detailed_sub_scenarios>>) describes aspects of the scenarios in more detail.
+
+=== Generic Control Flow for write operations
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Auth*
+    participant API
+    participant Verification
+    participant SDStore as SD-Storage
+    participant GraphDB as Graph-Database
+    User ->> + Auth:Authenticate
+    Auth -->> - User:OK
+    User ->> + API:OK
+    API ->> + Verification:Verify
+    Verification -->> - API:OK
+    API ->> + SDStore:Store
+    SDStore -->> + GraphDB:Update
+    SDStore -->> - API:OK
+    API -->> - User:OK
+....
+
+
+=== List of user runtime scenarios
+
+==== Get all Participants
+Anonymous users cannot request Participant information directly. Logged-in users can only access their own Participant. Catalogue Administrators can access all Participants.
+
+[mermaid, width=2000]
+....
+    sequenceDiagram
+        autonumber
+        actor User
+        participant Auth as Authentication
+
+        participant API As ParticipantsController
+        participant Parti as ParticipantsService
+        participant PartiDao as ParticipantsDao
+        participant SDStore as SelfDescriptionStorage
+        participant Keycloak as Keycloak
+
+        User ->> + Auth:Authorize(Ro-MU-CA)
+        Auth -->> - User:OK
+
+        User ->> + API:GET /participants
+
+        API ->> + Parti: getParticipants(offset, limit)
+        Parti -->> + PartiDao: search(offset, limit)
+
+        PartiDao -->> + Keycloak: GET /realms/gaia-x/groups
+        Keycloak -->> - PartiDao: Groups
+
+        PartiDao ->> PartiDao: fromGroupRepo(group): ParticipantMetaData
+
+        PartiDao -->> - Parti: Participants
+
+        Parti ->> + SDStore: getByFilter(filter)
+        SDStore -->> - Parti: SD Files
+        Parti ->> Parti: [Set SDs to Participants]
+        Parti -->> - API: Participants
+        API -->> - User: Participants
+....
+
+==== Get a Participant
+
+This flow describes fetching a Participant. This flow can be executed by the Catalogue Administrator (Ro-MU-CA) for all users and for the other roles, only for the own Participant.
+
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    participant Portal
+    participant ParticipantController
+    participant ParticipantsService
+    participant SDStore as SelfDescriptionStorage
+    participant ParticipantDao
+    participant Keycloak
+    Portal ->> + ParticipantController: GET /participants/{partID}
+    ParticipantController ->> + ParticipantsService: getParticipant(partID)
+    ParticipantsService ->> + ParticipantDao: select(partID)
+    ParticipantDao ->> + Keycloak: GET /realms/gaia-x/groups/{partID}
+    Keycloak -->> - ParticipantDao: group
+    ParticipantDao ->> ParticipantDao: fromGroupRepo(group): participant
+    ParticipantDao -->> - ParticipantsService: participant
+    ParticipantsService ->> + SDStore: getSDFileByHash(part.sdHash)
+    SDStore -->> - ParticipantsService: SDFile
+    ParticipantsService ->> ParticipantsService: [Set SDs to Participants]
+    ParticipantsService -->> - ParticipantController: participant
+    ParticipantController -->> - Portal: participant
+....
+
+Notes: If group in Keycloak ist not found (step 4), then a 404 error NOT_FOUND must be thrown.
+Important steps are:
+
+
+==== Get all Users of a Participant
+
+This flow describes fetching a Participant's Users. This flow can be executed by the Catalogue Administrator (Ro-MU-CA) and by the administrator of a participant (Ro-Pa-A | Ro-MU-A).
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Authentication
+
+    participant API as ParticipantsController
+    participant Parti as ParticipantsService
+    participant ParticipantDao
+    participant Keycloak
+
+    User ->> + Auth:Authorize (Ro-MU-CA | Ro-Pa-A | Ro-MU-A)
+    Auth -->> - User:OK
+
+    User ->> + API:GET /participants/{participantId}/users
+
+    API ->> + Parti: getParticipantUsers()
+    Parti ->> Parti: Ro-Pa-A | Ro-MU-A in User.Roles
+    Parti ->> Parti: Participant == User.Participant
+
+    Parti ->> + ParticipantDao: selectUsers()
+    ParticipantDao ->> + Keycloak: getUsersForGroup()
+    Keycloak ->> - ParticipantDao: List<Users>
+    ParticipantDao ->> - Parti: UserProfiles
+    Parti -->> - API: UserProfiles
+
+    API -->> - User:[UserProfiles]
+....
+
+==== Onboarding new Participant
+
+This flow describes the onboarding of a new Participant to the catalogue. This flow only can be executed by the Catalogue Administrator (Ro-MU-CA).
+
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant ParticipantController
+    participant ParticipantsService
+    participant VerificationService
+    participant SDStore as SelfDescriptionStorage
+    participant ParticipantDao
+    participant Keycloak
+
+    User ->> + ParticipantController: POST /participants
+    ParticipantController ->> + ParticipantsService: addParticipant (selfDescription)
+    ParticipantsService ->> + VerificationService: verifyParticipantSelfDescription(selfDescription)
+    VerificationService -->> - ParticipantsService: VerificationResultParticipant
+    ParticipantsService ->> + SDStore: storeSelfDescription(SelfDescriptionMetadata selfDescription, VerificationResult sdVerificationResults)
+    SDStore -->> - ParticipantsService: [Ok, if no exception]
+    ParticipantsService ->> + ParticipantDao: create(participant)
+    ParticipantDao ->> ParticipantDao: toGroupRepo(participant):group
+    ParticipantDao ->> + Keycloak: POST /realms/gaia-x/groups
+    Keycloak -->> - ParticipantDao: 201 CREATED (ParticipantMetaData)
+    ParticipantDao -->> - ParticipantsService: ParticipantMetaData
+    ParticipantsService -->> - ParticipantController: ParticipantMetaData
+    ParticipantController -->> - User: 201 CREATED (ParticipantMetaData)
+....
+
+**Step 3** Participant's Self-Description passed in request body in JSON-LD format
+
+**Step 4** ParticipantsService.addParticipant is annotated as @Transactional
+
+**Step 6** Return the Participant verification result. This should be an extension of API Participant structure.
+
+**Step 7** SelfDescriptionStorage must store selfDescription content first in a FileStore, which is non-transactional resource. In case of an exception on a subsequent step the file should be deleted in compensation action. Thus, the file identifier must be stored in some operation context.
+SelfDescription MetaData store and SelfDescription Graph store are transactional resources and must participate in the current operation transaction context.
+
+**Step 11** Keycloak is a non-transactional resource, accessed via REST interface. In case of any error at group addition procedure, an exception must be thrown and the current transaction must be rolled back entirely.
+
+Separately, a Participant-Administrator user for the new Participant is created. This should be aligned with the process in section "<<_adding_a_user>>". This process is initiated by the Portal.
+
+==== Updating a Participant
+
+This flow describes the update of a Participant. It can be executed by the Catalogue Administrator (Ro-MU-CA) for all users and from Participant Administrator (Ro-MU-A), only for the own Participant.
+
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    participant Portal
+    participant ParticipantController
+    participant ParticipantsService
+    participant VerificationService
+    participant SDStore
+    participant ParticipantDao
+    participant Keycloak
+    Portal ->> + ParticipantController: PUT /participants/{partID} (selfDescription)
+    ParticipantController ->> + ParticipantsService: updateParticipant (partID, selfDescription)
+    ParticipantsService ->> ParticipantsService: checkAccess [updated.participantId == user.participantId]
+    ParticipantsService ->> + ParticipantDao: select(partID)
+    ParticipantDao ->> + Keycloak: GET /realms/gaia-x/groups/{partID}
+    Keycloak -->> - ParticipantDao: group
+    ParticipantDao ->> ParticipantDao: fromGroupRepo(group): Participant
+    ParticipantDao -->> - ParticipantsService: Participant
+    ParticipantsService ->> + VerificationService: verifyParticipant(SelfDescription)
+    VerificationService -->> - ParticipantsService: VerificationResultParticipant
+    ParticipantsService ->> ParticipantsService: checkUpdates(existing, updated)
+    ParticipantsService ->> + SDStore: storeSelfDescription(SelfDescriptionMetadata, VerificationResultParticipant)
+    Note right of SDStore: For details see Diagram <br /> "Store Self-Descriptions to <br /> the Self-Description store"
+    SDStore -->> - ParticipantsService: ''
+    ParticipantsService --> + ParticipantDao: update(Participant)
+    ParticipantDao -->> ParticipantDao: toGroupRepo(Participant): group
+    ParticipantDao ->> + Keycloak: PUT /realms/gaia-x/groups/{partID}{group}
+    Keycloak -->> - ParticipantDao: 200 OK
+    ParticipantDao -->> - ParticipantsService: updated
+    ParticipantsService -->> - ParticipantController: updated
+    ParticipantController -->> - Portal: OK updated
+....
+
+This flow is very similar to <<_onboarding_new_participant>>.
+
+Notes:
+
+. If group in Keycloak is not found (step 4), then a 404 error NOT_FOUND must be thrown.
+. **Step 10**: Ensure that current User is allowed to update Participant: As Participant Administrator (Ro-MU-A) (updated.participantId == user.participantId). For Catalogue Administrator (Ro-MU-CA), this check is not needed.
+
+
+==== Offboarding a Participant
+
+[mermaid, width=2000]
+....
+    sequenceDiagram
+        autonumber
+        actor User
+        participant Auth as Authentication
+
+        participant API as ParticipantsController
+        participant Parti as ParticipantsService
+        participant SDStore as SelfDescriptionStore
+        participant Keycloak
+        participant Graph as GraphDB
+
+        User ->> + Auth:Authorize (Ro-MU-A)
+        Auth -->> - User:OK
+
+        User ->> + API:DELETE /participants/{participantId}
+
+        API ->> + Parti: deleteParticipant(participantId)
+
+        Parti ->> Parti: Ro-MU-A in User.Roles
+        Parti ->> Parti: Participant = User.Participant
+
+        Parti ->> + Keycloak: GET /realms/gaia-x/groups/{partID}
+        Keycloak -->> - Parti: Participant
+
+        Parti ->> + SDStore: getByHash(participantSDHash)
+        SDStore -->> - Parti: ParticipantSD
+
+        Parti ->> + SDStore: deleteSelfDescription(participantSDHash)
+        SDStore ->> + Graph: deleteClaims()
+        Graph -->> - SDStore:Null
+        SDStore -->> - Parti: Null
+
+        Parti ->> + Keycloak: DELETE /realms/gaia-x/groups/{partID}
+        Keycloak -->> - Parti: Participant
+
+        Parti -->> - API: Participant
+
+        API -->> - User: Participant
+....
+
+==== Request all Users
+Anonymous users cannot request User information directly. Logged-in users can only access user their own Participant and only if they have the role Ro-Pa-A or Ro-MU-A. Catalogue Administrator can access all Users.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Authentication
+    participant API as UsersController
+    participant service as UsersService
+    participant dao as Dao
+    participant keycloak as Keycloak
+
+    User ->> + Auth:Authorize (Ro-MU-CA|Ro-Pa-A|Ro-MU-A)
+    Auth -->> - User:OK
+
+    User ->> + API:GET /users
+    API ->> + service: getUsers(partId)
+    service ->> service: Ro-MU-CA|Ro-Pa-A|Ro-MU-A in User.Roles
+    service -->> + dao: selectUsers(partId)
+    dao -->> + keycloak: GET /realms/gaia-x/groups/{partId}/users
+    keycloak -->> - dao: UserRepresentations
+    dao -->> - service: UserProfiles
+    service -->> - API:UserProfiles
+    API -->> - User: UserProfiles
+....
+
+==== Request a User
+
+Anonymous users cannot request User information directly. Logged-in users can only access user their own Participant and only if they have the role Ro-Pa-A or Ro-MU-A. Catalogue Administrator can access all Users.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Authentication
+
+    participant API as UsersController
+    participant service as UsersService
+    participant dao as UserDao
+    participant keycloak as Keycloak
+
+    User ->> + Auth:Authorize (Ro-Pa-A | Ro-MU-A | Ro-MU-CA)
+    Auth -->> - User:OK
+
+    User ->> + API:GET /users/{userId}
+    API ->> + service: getUser(userId)
+    service -->> + dao: select(userId)
+    dao -->> + keycloak: GET /realms/gaia-x/users/{userId}
+    keycloak -->> - dao: UserRepresentation
+    dao -->> - service: UserProfile
+    service ->> service: (Ro-MU-CA in User.Roles) or <br>(Ro-Pa-A or Ro-MU-A in User.Roles and  RequestedUser.Participant == User.Participant)
+
+    service -->> - API:UserProfile
+    API -->> - User: UserProfile
+....
+
+==== Adding a User
+This may change depending on the SSO implementation used.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Authentication
+
+    participant API as UsersController
+    participant service as UsersService
+    participant dao as Dao
+    participant keycloak as Keycloak
+
+    User ->> + Auth:Authorize (Ro-Pa-A | Ro-MU-A | Ro-MU-CA)
+    Auth -->> - User:OK
+
+    User ->> + API:POST /users
+
+    API ->> + service: addUser(user)
+    service ->> service: Ro-MU-CA|Ro-Pa-A|Ro-MU-A in User.Roles
+    service -->> + dao: create(user)
+    dao -->> + keycloak: POST /realms/gaia-x/groups/{partId}/users
+    keycloak -->> - dao: UserRepresentation
+    dao -->> - service: UserProfile
+    service -->> - API: UserProfile
+    API -->> - User: UserProfile
+....
+
+When creating a user, the password of the new user is set. 
+
+This flow must contain the adding of an administrator user.
+
+==== Changing a User
+This may change depending on SSO implementation.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Authentication
+    participant API as UsersController
+    participant service as UsersService
+    participant dao as Dao
+    participant keycloak as Keycloak
+
+    User ->> + Auth:Authorize (Ro-Pa-A|Ro-MU-A|Ro-MU-CA)
+    Auth -->> - User:OK
+
+    User ->> + API:PUT /user/{userId}
+
+    API ->> + service: updateUser(userId,user)
+
+    service ->> service: Ro-MU-CA|Ro-Pa-A|Ro-MU-A in User.Roles
+
+    service -->> + dao: select(userId)
+    dao -->> + keycloak: GET /realms/gaia-x/groups/{partId}/users/{id}
+    keycloak -->> - dao: UserRepresentation
+    dao -->> - service: UserProfile
+
+    alt roles are changed
+    service ->> service: Check rules for 'Changing the Roles of a User'
+    end
+
+    service ->> + dao: update(userId, user)
+    dao -->> + keycloak: PUT /realms/gaia-x/groups/{partId}/users
+    keycloak -->> - dao: UserRepresentation
+
+    dao -->> - service: UserProfile
+    service -->> - API: UserProfile
+    API -->> - User: UserProfile
+....
+
+==== Changing the Roles of a User
+This may change depending on SSO implementation.
+
+[options="header",cols="1,2"]
+|===
+| Role ID | Can be given by
+| Ro-MU-CA | Ro-MU-CA
+| Ro-MU-A | Ro-MU-CA, Ro-MU-A
+| Ro-SD-A | Ro-MU-CA, Ro-MU-A, Ro-Pa-A (if not self)
+| Ro-Pa-A | Ro-MU-CA, Ro-MU-A, Ro-Pa-A
+|===
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Authentication
+
+    participant API as UsersController
+    participant service as UsersService
+    participant dao as Dao
+    participant keycloak as Keycloak
+
+    User ->> + Auth:Authorize (Ro-Pa-A|Ro-MU-A|Ro-MU-CA)
+    Auth -->> - User:OK
+
+    User ->> + API:PUT /users/{userId}/roles
+
+    API ->> + service: updateUser(userId,user)
+    service ->> service: Ro-MU-CA|Ro-Pa-A|Ro-MU-A in User.Roles
+    service -->> + dao: select(userId)
+    dao -->> + keycloak: GET /realms/gaia-x/groups/{partId}/users/{id}
+    keycloak -->> - dao: UserRepresentation
+    dao -->> - service: UserProfile
+
+    alt Administrator role is removed
+    service ->> service: Ensure the change does not remove the last administrator of the participant
+    end
+
+    service ->> + dao: updateRoles(userId, roles)
+    dao -->> + keycloak: PUT /realms/gaia-x/groups/{partId}/users
+    keycloak -->> - dao: UserRepresentation
+
+    dao -->> - service: UserProfile
+    service -->> - API: UserProfile
+    API -->> - User: UserProfile
+....
+
+==== Removing a User
+This may change depending on SSO implementation.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth as Authentication
+
+    participant API as UsersController
+    participant service as UsersService
+    participant dao as UserDao
+    participant keycloak as Keycloak
+
+    User ->> + Auth:Authorize (Ro-Pa-A|Ro-MU-A|Ro-MU-CA)
+    Auth -->> - User:OK
+
+    User ->> + API:DELETE /user/{userId}
+
+    API ->> + service: deleteUser(userId)
+    service -->> + dao: select(userId)
+    dao -->> + keycloak: GET /realms/gaia-x/groups/{partId}/users/{id}
+    keycloak -->> - dao: UserRepresentation
+    dao -->> - service: UserProfile
+
+    alt Ro-MU-CA|Ro-Pa-A|Ro-MU-A in User.Roles
+        service ->>service: Ensure the change does not remove the last administrator of the participant
+    end
+
+    service ->> + dao: delete(userId)
+    dao -->> + keycloak: DELETE /realms/gaia-x/groups/{partId}/users/{id}
+    keycloak -->> - dao: UserRepresentation
+
+    dao -->> - service: UserProfile
+    service -->> - API: UserProfile
+    API -->> - User: UserProfile
+....
+
+==== Requesting all Self-Descriptions
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant API
+    participant SDStore as SelfDescriptionStorage
+    User ->> + API:GET /self-descriptions
+    API ->> + SDStore: getByFilter()
+    SDStore -->> - API: List<SelfDescriptionMetadata>
+    API -->> - User:List<SelfDescriptionMetadata>
+....
+
+The __SelfDescriptionStorage__ must only return Self-Descriptions with __SelfDescription.lifeCycle == Active__.
+
+==== Filtering all Self-Descriptions
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant API
+    participant SDStore as SelfDescriptionStorage
+    User ->> + API:GET /self-descriptions
+    API ->> + SDStore: getByFilter(SdFilter filterParams)
+    SDStore -->> - API: List<SelfDescriptionMetadata, SelfDescription>
+    API -->> - User:List<SelfDescriptionMetadata, SelfDescription>
+....
+
+
+==== Requesting a specific Self-Description
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant API
+    participant SDStore as SelfDescriptionStorage
+    User ->> + API:GET /self-descriptions/{self_description_hash}
+    API ->> + SDStore: getByHash(String self_description_hash)
+    SDStore -->> - API: SelfDescriptionMetadata<br>+SelfDescription
+    API -->> - User:SelfDescriptionMetadata, SelfDescription
+....
+
+
+==== Adding a Self-Description for an Offering
+
+The basic flow of creating and updating an offering is identical. The distinction cannot be made until the SD-Storage receives the Self-Description metadata and checks if it already exists.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant Auth
+    participant API
+    participant VerificationService
+    participant SDStore as SD-Storage
+    User ->> + Auth:Autorize( Ro-SD-A | Ro-MU-A | Ro-SD-A )
+    Auth -->> - User:[OK]
+    User ->> + API:POST /self-descriptions
+    API ->> + VerificationService:verifyOfferingSelfDescription(sd)
+    VerificationService --> VerificationService:[Verify Syntax]
+    VerificationService --> VerificationService:[Verify Semantic]
+    VerificationService --> VerificationService:[Extract SD Type]
+    VerificationService --> VerificationService:[Verify Schema]
+    VerificationService --> VerificationService:[Verify Signatures]
+    VerificationService --> VerificationService:[Extract Participant]
+    VerificationService --> VerificationService:[Extract Claims]
+    VerificationService -->> - API:VerificationResult
+    API --> API:Check[SD-participant == user-participant | Ro-MU-CA]
+    alt SD.type != Participant
+        API -->> User: [Error. Use Participant API]
+    else SD.type == Offering
+        API ->> + SDStore: storeSelfDescription(SelfDescriptionMetadata, VerificationResultOffering)
+    Note right of SDStore: For details see Diagram <br /> "Store Self-Descriptions to <br /> the Self-Description store"
+        SDStore -->> - API: [Ok, if no exception]
+        API -->> - User:[Self-Description Meta]
+    end
+....
+
+
+==== Updating a Self-Description for an Offering
+
+There is no direct way to update a Self-Description. Updates can happen by submitting a new Self-Description, referring to the same credentialSubject. The old Self-Description for the same credentialSubject will be depricated.
+
+See runtime scenario <<_adding_a_self_description_for_an_offering>> for more details.
+
+
+==== Revoking a Self-Description for an Offering
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant API
+    participant Auth
+    participant SDStore as SD-Storage
+    User ->> + API:POST /self-descriptions/{self_description_hash}/revoke
+    API ->> + Auth:Autorize( Ro-SD-A | Ro-MU-A | Ro-SD-A )
+    Auth -->> - API:[OK]
+    API ->> + SDStore: getByHash(self_description_hash)
+    SDStore -->> - API: SelfDescriptionMetadata
+    API --> API:Check[SD-participant == user-participant | Ro-MU-CA]
+    alt SD.type != Participant
+        API -->> User: [Error. Use Participant API]
+        Note right of User: The handling of participant SDs is still open. See #6
+    else SD.type == Offering
+        API ->> + SDStore: changeLifeCycleStatus(self_description_hash, REVOKED)
+        SDStore -->> SDStore: getCredentialSubjectForHash()
+        SDStore -->> GraphDB: deleteClaims(credentialSubject)
+        SDStore -->> - API: [Ok, if no exception]
+        API -->> - User:[Self-Description Meta]
+    end
+....
+
+
+==== Get the current composite Schema
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    actor User
+    participant API
+    participant SchemaStore as SchemaStore
+    User ->> + API:GET /schemas/latest
+    API ->> + SchemaStore:getCompositeSchema(schemaType)
+    SchemaStore ->> SchemaStore:generate Composite Schema
+    SchemaStore -->> - API:Composite Schema
+    API -->> - User:Composite Schema
+....
+
+
+==== Get all Schema IDs
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    actor User
+    participant API
+    participant SchemaStore as SchemaStore
+    User ->> + API:GET /schemas
+    API ->> + SchemaStore:getSchemaList()
+    SchemaStore ->> SchemaStore:load Schema IDs
+    SchemaStore -->> - API:Schema IDs
+    API -->> - User:Schema IDs
+....
+
+
+==== Get a Schema
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    actor User
+    participant API
+    participant SchemaStore as SchemaStore
+    User ->> + API:GET /schemas/{schemaId}
+    API ->> + SchemaStore:getSchema(schemaId)
+    SchemaStore ->> SchemaStore:load Schema-file
+    SchemaStore -->> - API:Schema-file
+    API -->> - User:Schema-file
+....
+
+
+==== Get the Schema that defines an Entity
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    actor User
+    participant API
+    participant SchemaStore as SchemaStore
+    User ->> + API:GET /schemas/latest/{termURI}
+    API ->> + SchemaStore:getSchemaForTerm(termURI)
+    SchemaStore ->> SchemaStore:find Schema IDs
+    SchemaStore -->> - API:Schema IDs
+    API -->> - User:Schema IDs
+....
+
+==== Adding a Schema
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    actor User
+    participant Auth as Auth*
+    participant API
+    participant SchemaStore
+    User ->> + Auth:Authenticate
+    Auth -->> - User:OK
+    User ->> + API:POST /schemas
+    API ->> + SchemaStore:addSchema(schemaFile)
+    SchemaStore ->> SchemaStore:Analyse Type
+    SchemaStore ->> SchemaStore:Extract or Generate ID
+    SchemaStore ->> SchemaStore:Extract defined URLs
+    SchemaStore ->> SchemaStore:Check Duplicate URLs
+    SchemaStore ->> SchemaStore:Store Schema
+    SchemaStore -->> - API:SchemaID
+    API -->> - User:SchemaID
+....
+
+
+==== Updating a Schema
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    actor User
+    participant API
+    participant Auth as Auth*
+    participant SchemaStore
+    participant Verification as VerificationService
+    participant Revalidation as RevalidationService
+    User ->> + API:PUT /schemas/{ID}
+    API ->> + Auth:Athenticate
+    Auth -->> - API:OK
+    API ->> + SchemaStore:updateSchema(ID, schema)
+    SchemaStore ->> SchemaStore:Extract type, ID, URLs
+    SchemaStore ->> SchemaStore:Verify ID == ID
+    SchemaStore ->> SchemaStore:Verify type == old.type
+    SchemaStore ->> SchemaStore:Remove old schema
+    SchemaStore ->> SchemaStore:Check Duplicate URLs
+    SchemaStore ->> SchemaStore:Store Schema
+    activate Revalidation
+    SchemaStore -->> -API:OK
+    API -->> - User:OK
+    loop For Each SD
+        Revalidation ->> + Verification:Validate SDs
+        Verification -->> - Revalidation:Result
+        alt If NOK
+            Revalidation ->> SchemaStore:Revoke SD
+        end
+    end
+    deactivate Revalidation
+....
+
+
+==== Deleting a Schema
+
+When deleting a schema Self-Descriptions do not need to be re-verified, since a Self-Description cannot conflict with a non-existing schema.
+[mermaid, width=2000]
+....
+sequenceDiagram
+    actor User
+    participant API
+    participant Auth as Auth*
+    participant SchemaStore as SchemaStore
+    User ->> + API:DELETE /schemas/{schemaId}
+    API ->> + Auth:Authenticate
+    Auth -->> - API:OK
+    API ->> + SchemaStore:deleteSchema(schemaId)
+    SchemaStore ->> SchemaStore:Remove schema
+    SchemaStore -->> - API:OK
+    API -->> - User:OK
+....
+
+
+==== Request query HTML page
+
+When calling `GET /query` a HTML page with a query input form is displayed.
+
+==== Query the catalogue
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant API
+    participant Graph as Graph-DB
+    User ->> + API: POST /query
+    API ->> + Graph: queryData(sdQuery)
+    Graph ->> Graph: validateQuery()
+    Note right of Graph: Only read queries are allowed
+    Graph ->> Graph: executeQuery()
+    Graph -->> -API: QueryResult
+    API -->> -User: QueryResult
+....
+
+
+==== Request Self-Description verification HTML page
+
+When calling `GET /verifications/self-descriptions` a static HTML page is returned, which allows to submit a Self-Description for validation.
+
+==== Request verification for a Self-Description
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    actor User
+    participant API
+    participant VerificationService
+    User ->> + API:POST /verifications/self-descriptions
+    API ->> + VerificationService:verifySelfDescription(sd)
+    VerificationService --> VerificationService:[Verify Syntax]
+    VerificationService --> VerificationService:[Verify Signatures]
+    VerificationService --> VerificationService:[Verify Schema]
+    VerificationService -->> - API:VerificationResult
+    API -->> -User: VerificationResult
+....
+
+=== Detailed sub-scenarios
+The previous section described the sce
+This section describes some sub scenarios, that occure
+
+==== Store Self-Descriptions to the Self-Description store
+This sequence diagram shows the detailed flow, when storing Self-Descriptions in the Self-Description store.
+Since Self-Descriptions themselves are immutable, they can't be updated. To update the description of an Offering or Participant, a new Self-Description with the same __credentialsSubject__ must be passed to the storeSelfDescription component. This __credentialsSubject__ is internally used to check if an update workflow is needed. Confurrent modifications are avoided by using a transaction on the relational database used for storing the meta data of the Self-Description, and locking the row of the currently active Self-Description for the given __credentialsSubject__. A partial index on the metadata database ensures that for a given __credentialsSubject__ only one Self-Description can have the state __Active__.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    participant Service
+    participant SDStore as SD-Storage
+    participant MetaData as MetaData Store
+    participant FileStore as File Store
+        Service ->> + SDStore: storeSelfDescription<br>(SD-Metadata, VerificationResult)
+        SDStore ->> + MetaData:getForActiveSd<br>(credentialSubject)
+        MetaData -->> SDStore:MetaData or NULL
+        opt credentialSubject is present
+            SDStore ->> MetaData:depricateOldSD()
+            MetaData -->> SDStore:OK
+            SDStore ->> GraphDB:deleteClaims(credentialSubject)
+        end
+        SDStore ->> MetaData:storeMetaData()
+        MetaData -->> - SDStore:OK
+        SDStore ->> + FileStore:storeNewSD()
+        FileStore -->> - SDStore:OK
+        SDStore ->> GraphDB:addClaims(Claims, credentialSubject)
+        SDStore -->> - Service: [Ok, if no exception]
+....
+
+==== Periodic Validation of Signatures
+This sequence diagram shows the detailed flow, when checking the expiration date of the signatures of all Self-Descriptions.  This sequence is to be periodically triggered.
+
+[mermaid, width=2000]
+....
+sequenceDiagram
+    autonumber
+    participant Scheduler
+    participant SDStore as SD Store
+    participant Database
+    loop once per day
+        Scheduler ->> + SDStore: invalidateSelfDescriptions()
+        SDStore ->> + Database:getAllActiveSdWithExpirationTimeInThePast()
+        Database -->> - SDStore: List<SD>
+        loop for all returned SDs
+            SDStore ->> SDStore:changeLifeCycleStatus(hash, DEPRECATED)
+            Note right of SDStore: This will update the DB <br /> and the GraphStore.
+        end
+        SDStore -->> - Scheduler: [Count]
+    end
+....
+
+
+=== Description of shared procedures
+
+==== Verify Self-Description
+
+The verification of SDs consists out of three parts (syntactic, cryptographic, semanticaverification).
+Besides verifing the SD additional tasks are executed (e.g., parsing, claim extraction).
+
+The syntactic verification is done by parsing the SD. 
+Any syntactic issue will rise there.
+The semantic verification is conducted after the parsing of the Self-Description.
+
+The uploaded Self-Descriptions are checked against a composite schema of type SHACL.
+If a Self-Description is not conforming against the composite schema, a verification exception will be
+thrown with a message containing the validation report that holds the cause. In that case,
+the verification process will not proceed, and claims will not be extracted.
+
+The cryptographic verification (trust verification) checks all proofs in the SD if the signature, the offered key and the content match.
+Further, the key is validated against the Gaia-X Registry.
+When checking whether the proofs match the Self-Description or the contained Verifiable Credentials, the JSON object is normalized using the Universal RDF Dataset Canonicalization Algorithm URDNA2015footnote:[https://w3c-ccg.github.io/rdf-dataset-canonicalization/spec/#dfn-urdna2015[RDF Dataset Canonicalization. A Standard RDF Dataset Canonicalization Algorithm. W3C, Final Community Group Report 15 October 2022]] as specified by Gaia-X. 
+This allows a robust signing of Self-Descriptions.
+The normalization algorithm extracts the RDF graph from the claim to perform the signing.
+Thus, the Self-Description can be changed (in some specific manners) while the signature remains.
+
+Afterwards the claims are extracted from the Self-Description.
+Further, it is checked if all Credential Subjects in the Self-Description affect the same subject.
+
+The flowchart below shows the steps within the verification sequence.
+[mermaid, width=2000]
+....
+sequenceDiagram
+    VerificationService --> VerificationService:[Verify Syntax]
+    VerificationService --> VerificationService:[Verify Semantic]
+    VerificationService ->> VerificationService:[Extract SD Type]
+    VerificationService --> VerificationService:[Verify Schema]
+    VerificationService --> VerificationService:[Verify Signatures]
+    VerificationService ->> VerificationService:[Extract Claims]
+    VerificationService ->> VerificationService:[Extract Participant]
+....
+
+image:06_verification_flow.png[Verification Workflow]
+////
+This is the source code for the figure above. Directly added the figure due to a bug in mmdc
+
+[mermaid, width=2000]
+....
+flowchart LR
+    subgraph one [Syntactic Validation]
+        oneB(Parse JSON +<br> Check syntax)
+    end
+    subgraph two [Semantic Verification]
+        direction TB
+        twoA([Validate against JSON-LD Grammar])
+        twoA --> twoB(Validate against Verifiable Credential standard)
+    end
+    subgraph three [Schema Validation]
+        direction TB
+        threeA([Extract Claims])
+        threeA --> threeB(Check claims vs SHACL)
+    end
+    subgraph four [Trust Verification]
+        direction TB
+        twoA(Check if signatures exist, <br> if signatures are in expected format and <br> extract signatures)
+        twoA --> twoB(Check if public key valid)
+        twoB --> twoC(Check if signatures match)
+        twoC --> |For all <br> Verifiable presentation <br> All verifiable credentials| twoB
+        twoC --> twoD(Extract issuer participant ID <br> and check if issuers match)
+    end
+    one --> two
+    two --> three
+    three --> four
+    subgraph five [Legend]
+        direction TB
+        A(Throws an error if check fails)
+        B([Operation on SD])
+    end
+....
+////

@@ -1,0 +1,51 @@
+:jbake-title: Glossary
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 12
+:filename: /chapters/12_glossary.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-glossary]]
+== Glossary
+
+[cols="e,2e" options="header"]
+|===
+|Term |Definition
+
+|Self-Description (SD)
+|A Self-Description expresses characteristics of a Resource, Service Offering or Participant and describes properties and Claims which are linked to the Identifier. It is a Verifiable Presentation.
+
+|Verifiable Presentation (VP)
+|A verifiable presentation expresses data from one or more verifiable credentials, and is packaged in such a way that the authorship of the data is verifiable. 
+
+|Verifiable Credential (VC)
+|A credential is a set of one or more claims made by the same entity. A verifiable credential is a set of tamper-evident claims and metadata that cryptographically prove who issued it. 
+
+|Claim
+|An assertion made about a subject within Gaia-X.
+
+|Proof
+|To make the VP tamper-resistant, VPs (and VCs) are signed. The proof object contains the information to check if the presented data was manipulated. The object contains, besides others, the signed hash of the data, the link to therespective public key, and information regarding the algrithm used for signing.
+
+|Issuer
+|A role an entity can perform by asserting claims about one or more subjects and creating a verifiable credential from these claims.
+
+|Schema
+|Generic term for either an ontology, shape graph or controlled vocabulary.
+
+|Term
+|A node in a RDF graph. A node can be an IRI, a literal, or a blank node.
+
+|DID
+|A portable URL-based identifier, also known as a DID, associated with an entity. An example of a DID is `did:web:example.com`. 
+
+|DID Document
+|The DID presented in an VC or proof links to an DID-Document. The DID-Document is a description of an identity. It is stored dezentralized by the owner. The DID-Document provides cryptographic information that can be used to verify any document. Thereby, it can be ensured that the document is trusted.
+
+|id/credentialSubject of an Entity
+|Unique identifier for entities stored in the catalogue. It must be present as an attribute in the claims of a Self-Description
+
+|===

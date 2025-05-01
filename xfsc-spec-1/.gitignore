@@ -1,0 +1,8 @@
+.envrc
+docs/_build
+.direnv/
+site/
+.gitlab-ci-local/
+debug/
+pdf/
+public/

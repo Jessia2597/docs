@@ -1,0 +1,27 @@
+:jbake-title: System Scope and Context
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 3
+:filename: /chapters/03_system_scope_and_context.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-system-scope-and-context]]
+=== Business Context
+The following table shortly lists the Stakeholders for the federated catalogue:
+
+[options="header",cols="1,2"]
+|===
+| Stakeholder | Description
+| Federator | Responsible for operating the Federated Catalogue.
+| Participant (in a Federation), typically in the Provider role | Onboarded entity, according to http://docs.gaia-x.eu/technical-committee/architecture-document/latest/conceptual_model/#participants[this] definition. A Participant has a Gaia-X Self-Description.
+| Provider | Special type of _Participant_, who might submit Self-Descriptions to the Catalogue.
+| Consumer | Special type of _Participant_, who can consume services in Gaia-X
+| User | Usually a person action on behalf of a _Participant_. A users interacts (maybe with the help of other components, like the portal) with the federated catalogue. The accessible endpoints depend on the rule, a user has.
+|===
+
+More information can be found in the http://docs.gaia-x.eu/technical-committee/architecture-document/latest/[Gaia-X Architecture document].
+
+

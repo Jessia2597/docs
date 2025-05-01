@@ -1,0 +1,43 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  DOCS_DIR: docs
+
+include:
+  # - local: './gaia-x-document-template/gitlab-ci-template.yml'
+  - project: 'gaia-x/toolset/gaia-x-document-template'
+    ref: main # could also use git SHA
+    file: 'gitlab-ci-template.yml'
+
+
+pre_build: # not needed here
+  when: manual
+  image: registry.gitlab.com/hmajid2301/markdown-mermaid-to-images
+  stage: pre_build_pdf
+  script:
+    - echo "Mandatory script for gitlab"
+
+generate_pdf:
+  stage: pdf 
+  image: python:3-bullseye
+  before_script:
+    - git submodule update --recursive --remote
+    - apt update
+    - cp -r gaia-x-document-template/requirements.txt .
+    - pip install -Ur requirements.txt
+    - mkdir -p debug
+    - mkdir pdf
+    - cp -r gaia-x-document-template/template_pdf/css docs/
+    - cp -r gaia-x-document-template/template_pdf/fonts docs/
+    - cp gaia-x-document-template/create_TOC.sh .
+  script:
+    - j2 mkdocs.pdf.yml.j2 > mkdocs.yml
+    - bash generate_pdf_custom.sh
+  artifacts:
+    paths:
+      - pdf
+      - debug
+    expire_in: 1 day
+  only:
+    - master
+    - main
+    - /^2[1-9].[0-1][0-9]$/ # regex for release branches

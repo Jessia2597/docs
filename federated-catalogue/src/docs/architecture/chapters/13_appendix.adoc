@@ -1,0 +1,281 @@
+:jbake-title: Appendix
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 13
+:filename: /chapters/13_glossary.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-appendix]]
+== Appendix
+
+=== Example Queries
+
+These examples demonstrate how to interact with the xref:05_building_block_view#_graph_database[Graph Database].
+
+All of the following examples have the same structure:
+
+Data::
+        Self-Descriptions that are assumed to exist in the Graph Database, i.e., after having it uploaded during the xref:06_runtime_view#_onboarding_new_participant[Onboarding of a new Participant], or when xref:06_runtime_view#_adding_a_self_description_for_an_offering[creating a new Service Offering].  A link to the full input files is provided; the listing shows an excerpt with the information relevant for the query.  For readability, it focuses on the claims about the credential subject, omitting the full context definition and even certain mandatory attributes if they are not relevant for the query.
+Query::
+        The query to be asked via the xref:06_runtime_view#_adding_a_self_description_for_an_offering[query endpoint].
+Result::
+        The expected result.  Some queries will only be reproducible exactly in this way if the catalogue contains no other Self-Descriptions.
+
+==== All Nodes and Relationships
+
+Get all nodes and relationships between them.
+
+===== Data
+
+Three Participants (legal persons): https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/test-issuer.jsonld[1], https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/test-issuer2.jsonld[2], https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/test-issuer3.jsonld[3].
+
+This listing shows the full structure of a Self-Description in JSON-LD.  The following listings will focus on the credential subject, as it is only the claims about that subject which are extracted into the Graph Database.
+
+[source,json]
+----
+{
+  "@context": "https://www.w3.org/2018/credentials/v1"
+  "type": "VerifiablePresentation",
+  "verifiableCredential": {
+    "@context": "https://www.w3.org/2018/credentials/v1",
+    "@type": "VerifiableCredential",
+    "issuer": "http://gaiax.de",
+    "issuanceDate": "2022-10-19T18:48:09Z",
+    "credentialSubject": {
+      "@context": {
+        "ex": "http://example.org/",
+        "gax-trust-framework": "https://w3id.org/gaia-x/gax-trust-framework#",
+        "xsd": "http://www.w3.org/2001/XMLSchema#",
+        "vcard": "http://www.w3.org/2006/vcard/ns#"
+      },
+      "@id": "ex:test-issuer",
+      "@type": "gax-trust-framework:LegalPerson",
+      "gax-trust-framework:registrationNumber": "DE182676944",
+      "gax-trust-framework:legalAddress": {
+        "@type": "vcard:Address",
+        "vcard:country": "DE",
+        "vcard:locality": "Köln",
+        "vcard:postal-code": "50825",
+        "vcard:street-address": "Lichtstraße 43h"
+      },
+      "gax-trust-framework:headquarterAddress": {
+        "@type": "vcard:Address",
+        "vcard:country": "DE",
+        "vcard:locality": "Köln",
+        "vcard:postal-code": "50825",
+        "vcard:street-address": "Lichtstraße 43h"
+      },
+      "gax-trust-framework:legalName": "eco - Verband der Internetwirtschaft e.V.",
+      "gax-trust-framework:name": "eco - Verband der Internetwirtschaft"
+    },
+    "proof": { ... }
+  },
+  "proof": { ... }
+}
+
+... # two more with the same structure, just different attribute values
+----
+
+===== Query
+
+[source,cypher]
+----
+MATCH (m) -[relation]-> (n) RETURN m, relation, n
+----
+
+===== Output
+
+----
+[{m={legalName=eco - Verband der Internetwirtschaft e.V.,
+     name=eco - Verband der Internetwirtschaft,
+     claimsGraphUri=[http://example.org/test-issuer]},
+  n={country=DE,
+     postal-code=50825,
+     claimsGraphUri=[http://example.org/test-issuer],
+     street-address=Lichtstraße 43h,
+     locality=Köln},
+  relation=legalAddress}, 
+ {m={legalName=eco - Verband der Internetwirtschaft e.V.,
+     name=eco 2,
+     claimsGraphUri=[http://example.org/test-issuer2]},
+  n={country=DE,
+     postal-code=11111,
+     claimsGraphUri=[http://example.org/test-issuer2],
+     street-address=1 Test Street,
+     locality=Cologne},
+  relation=legalAddress}, 
+ {m={legalName=eco - Verband der Internetwirtschaft e.V.,
+     name=eco 3,
+     claimsGraphUri=[http://example.org/test-issuer3]},
+  n={country=DE,
+     postal-code=22222,
+     claimsGraphUri=[http://example.org/test-issuer3],
+     street-address=2 Test Street,
+     locality=Kölle},
+  relation=legalAddress}]
+----
+
+Note that, via the special property +claimsGraphUri+ all nodes have a link back to the ID of the credential subject from which they have been extracted.  This way, it is possible to obtain further information about the respective Self-Description from the Metadata Store.
+
+==== Simple Relationship
+
+Check whether +ServiceOffering+ has two properties, one of which has a value with a certain label (i.e., identifier), and return the URI of the +ServiceOffering+.
+
+===== Data
+
+One Service Offering; see https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/serviceElasticSearch[file].
+
+[source,json]
+----
+{
+  "@id": "http://w3id.org/gaia-x/indiv#serviceElasticSearch.json",
+  "@type": "gax-trust-framework:ServiceOffering",
+  "ex:some_property": {
+    "ex:some_other_property": {
+      "@value": "ex:some_service",
+      "@type": "gax-trust-framework:ServiceOffering"
+    }
+  },
+  "gax-trust-framework:name": "Elastic Search DB"
+}
+----
+
+===== Query
+
+[source,cypher]
+----
+MATCH (o)<-[:some_other_property]-(n:ServiceOffering)-[:some_property]->(m) WHERE o.label=resource24 RETURN n.uri
+----
+
+===== Output
+
+----
+[{n.uri=http://ex.com/credentialSubject2}]
+----
+
+==== Essential Attributes
+
+Return the type, name, legal address and legal name of a (+Participant+) Self-Description.
+
+===== Data
+
+A Participant like used in the query for <<anchor:_all_nodes_and_relationships,all nodes and relationships>>; see https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/test-issuer2.jsonld[file].
+
+[source,json]
+----
+{
+  "@id": "ex:test-issuer2",
+  "@type": "gax-trust-framework:LegalPerson",
+  "gax-trust-framework:legalAddress": {
+    "@type": "vcard:Address",
+    "vcard:country": "DE",
+    "vcard:locality": "Cologne",
+    "vcard:postal-code": "11111",
+    "vcard:street-address": "1 Test Street"
+  },
+  "gax-trust-framework:legalName": "eco - Verband der Internetwirtschaft e.V.",
+  "gax-trust-framework:name": "eco 2"
+}
+----
+
+===== Query
+
+[source,cypher]
+----
+MATCH (m)-[:legalAddress]->(n) RETURN LABELS(m) as type, n as legalAddress, m.legalName as legalName, m.name as name
+----
+
+===== Output
+
+----
+[{legalName=eco - Verband der Internetwirtschaft e.V.,
+  name=eco 2,
+  type=[Resource,LegalPerson],
+  legalAddress={country=DE,
+                postal-code=11111,
+                claimsGraphUri=[http://example.org/test-issuer2],
+                street-address=1 Test Street,
+                locality=Cologn}}]
+----
+
+==== Entity having a Property
+
+Obtain an entity (as node) that has some property.
+
+===== Data
+
+Two Service Offerings, which both match the query: https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/credentialSubject2[1], https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/serviceElasticSearch[2].
+
+[source,json]
+----
+{
+  "@id": "http://w3id.org/gaia-x/indiv#serviceElasticSearch.json",
+  "@type": "gax-trust-framework:ServiceOffering",
+  "ex:some_property": {
+    "ex:some_other_property": {
+      "@value": "ex:some_service",
+      "@type": "gax-trust-framework:ServiceOffering"
+    }
+  },
+  "gax-trust-framework:name": "Elastic Search DB"
+}
+
+...
+
+{
+  "@id": "ex:credentialSubject2",
+  "@type": "gax-trust-framework:ServiceOffering",
+  "ex:some_property": {
+    "@value": "http://ex.com/resource23",
+    "@type": "xsd:anyURI"
+  }
+}
+----
+
+===== Query
+
+[source,cypher]
+----
+MATCH (n)-[:some_property]->(m) RETURN n
+----
+
+===== Output
+
+----
+[{n={claimsGraphUri=[http://w3id.org/gaia-x/indiv#serviceElasticSearch.json]}},
+ {n={claimsGraphUri=[http://ex.com/credentialSubject2]}}]
+----
+
+==== Entities by Name
+
+Return all entities having a given name.
+
+===== Data
+
+One Service Offering; see https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/tree/main/examples/queries/credentialSubject2[file].
+
+[source,json]
+----
+{
+  "@id": "http://w3id.org/gaia-x/indiv#serviceElasticSearch.json",
+  "@type": "gax-trust-framework:ServiceOffering",
+  ...
+  "gax-trust-framework:name": "Elastic Search DB"
+}
+----
+
+===== Query
+
+[source,cypher]
+----
+MATCH (n:ServiceOffering) WHERE n.name = "Elastic Search DB" RETURN n.uri LIMIT 25
+----
+
+===== Output
+
+----
+[{n.uri=http://w3id.org/gaia-x/indiv#serviceElasticSearch.json}]
+----

@@ -1,0 +1,18 @@
+image: phertweck/doctoolchain:v2.0.5
+
+generate_pdf:
+  script:
+    - ./dtcw generatePDF
+  artifacts:
+    paths:
+      - build/pdf/architecture/catalogue-architecture.pdf
+
+pages:
+  script:
+    - ./dtcw generateHTML
+    - cp -r build/html5 public
+  artifacts:
+    paths:
+      - public
+  only:
+    - main

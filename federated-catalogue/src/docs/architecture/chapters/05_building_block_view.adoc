@@ -1,0 +1,900 @@
+:jbake-title: Building Block View
+:jbake-type: page_toc
+:jbake-status: published
+:jbake-menu: arc42
+:jbake-order: 5
+:filename: /chapters/05_building_block_view.adoc
+ifndef::imagesdir[:imagesdir: ../../images]
+
+:toc:
+
+[[section-building-block-viev]]
+
+== Overall System overview
+This document describes the architecture of the Federated Catalogue, a component inside the Gaia-X Ecosystem. It is a component of the Gaia-X Federation Services defined by the GXFS-DE project.
+
+The Federated Catalogue is used to store and index Self-Descriptions and to answer queries over this index. The basic integration into the Federation Services is shown in <<system_overview>>.
+
+The Catalogue is not directly accessed by end usersfootnote:[Here, this term comprises users outside a Gaia-X Ecosystem, i.e., what the Gaia-X Architecture Document calls End Users, a well as individual users acting on behalf of a Participant.]. The Catalogue offers an API, which might be used, e.g., from a Gaia-X Portal (offering a graphical user interface for end users).
+
+Authentication within the Federation is realized by a dedicated component. It is not part of the Federated Catalogue. To demonstrate the integration, the Federated Catalogue offers an Authentication component, based on common, off the shelf software (see section <<_authentication>>).
+
+The Federated Catalogue offers the possibility to verify Self-Descriptions. Therefore, signatures in Self-Descriptions must be verified, which requires trust anchors.  According to the Gaia-X Trust Framework, those trust anchors are available in the Gaia-X Registry.  When submitting Self-Descriptions, the public key is downloaded. The belonging X.509 certificate is then sent to the Gaia-X registry if it has a valid trust anchor.
+
+[#system_overview,reftext='Figure {counter:refnum}']
+.System Overview
+image::05_system_overview.png["05_system_overview"]
+
+
+=== Level 1: Components of the Federated Catalogue
+The Federated Catalogue is not a monolithic application. It consists of multiple components, to reuse existing technology and to allow scaling. Those components can be deployed individually (see section <<section-deployment-view>>).
+
+[#catalogue_components_high_level,reftext='Figure {counter:refnum}']
+.Components of the Catalogue
+image::05_catalogue_components_high_level.png[""]
+The components are
+
+[cols="1a,2a" options="header"]
+|===
+| **Name** | **Responsibility**
+| Catalogue | Main component, implementing the core catalogue functionality.
+| Authentication | External component implementing the authentication flow and user management.
+| Graph-DB | Graph database, holding all claims contained in active Self-Descriptions. The Graph database is responsible for executing semantic search queries.
+| File Store | The File store is a blob storage. It holds the Self-Description files and the files for the Schemas. This includes historical versions of the Self-Descriptions and Schemas.
+| Metadata Store | Store for metadata on the Self-Descriptions, and Schemas stored in the File Store.
+|===
+
+==== Catalogue
+The architecture of the core component is described in the next sections.
+
+==== Authentication
+
+The authentication component is responsible for authenticating users. This is not a central component of the catalogue, as it will be implemented by Lot 1 "Authentication & Authorization" of the GXFS-DE project. For the catalogue implementation, a mock integration is shown, using common, off the shelf software that implements the OpenID Connect standardfootnote:[https://openid.net/connect/[OpenID Connect]].
+
+The responsibilities of the authentication components are:
+
+* Storage of Users
+* Storage of user roles for a Participant
+
+A user belongs to only one Participant, on whose behalf he or she acts (see specification section 2.4 for more details).
+
+For the implementation, Keycloak will be used. It is widely used and also part of the implementation of other lots. Therefore, this integration of different lots is simplified. The user will get a JSON Web Token (JWTfootnote:[https://www.rfc-editor.org/rfc/rfc7519[JSON Web Token (JWT). RFC 7519. IETF, 2015.]]) with user claims and authorities, which is used to authenticate requests to the catalogue REST API.
+
+An alternative implementation would be Lissifootnote:[https://lissi.id/[Lissi - Building trusted relationships]]. It is not further considered, as it is not as mature as Keycloak.
+
+==== Graph database
+
+The graph database holds the claims of verified, active Self-Descriptions. Claims of Self-Descriptions that fail the verification are not added to the graph database. Claims of Deprecated, Expired or Revoked Self-Descriptions will be deleted from the Graph database.
+
+The Graph Database can be considered as a kind of search index. The single source of truth are the active Self-Descriptions, stored in the File Store. This means at any point in time the Graph database can be rebuilt from scratch by reimporting the claims of the Self-Descriptions. This allows the following:
+
+. **Backup**: An explicit backup of the Graph database is not needed. Backing up the Self-Description files (located in the File Storage) and the metadata (located in the Metadata Store) is sufficient to allow the rebuild of the Graph Database.
+
+. **Scalability**: Querying the Graph database might be the most critical part regarding performance. Therefore, the Graph Database can be replicated in the future by multiple, independent instances. Since there are no strict consistency requirements, changes in the Graph can be applied independently. In the control flow, all write operations on Self-Descriptions pass the Metadata Store. Therefore, the consistency can be enforced by that database.
+
+Generically returning the Self-Description files containing claims that influence query response is not possible. To get the relevant Self-Description files, the query to the Graph Database can be formulated to return the Gaia-X entity that is the __credentialSubject__ of a Verifiable Credential. Then this can be used as a filter for the Self-Description endpoint, to download the Self-Description file.
+
+Neo4j is used as implementation of the Graph database.
+
+[IMPORTANT] 
+.Limitation: queries to non-Enterprise Neo4j Graph database return empty record when no results found, rather than empty list.
+====
+When there is no data in the Graph database, i.e., no claims extracted from Self-Description, there is still a configuration node for the neosemantics modulefootnote:[https://neo4j.com/labs/neosemantics/4.0/config/[Configuring Neo4j to use RDF data]], which enables Neo4j to support the RDF data model, which is required here.
+openCypher queries over all nodes without a +WHERE+ clause or without specifying relationships always return this node, unless regular users are revoked access from the configuration node as follows:
+[source,cypher]
+----
+DENY MATCH {*} ON GRAPH neo4j NODES _GraphConfig TO PUBLIC
+----
+However this revoke operation is only supported in Neo4j enterprise.footnote:[https://neo4j.com/docs/cypher-manual/current/access-control/manage-privileges/#access-control-graph-privileges[Neo4j Cypher Manual 5. Managing privileges. Graph privilege commands.]]
+We chose not to implement a workaround that involves query rewriting, as this may have harmful side effects.
+====
+
+==== File Store
+The File Store is responsible to persist all file based content submitted to the catalogue. These are Self-Descriptions and Schemas.
+
+For the sake of simplicity, a folder in the file system is used as file store. For future scalability the file store can be simply realized using an Object Storage or Database.
+
+==== Metadata Store
+In the Metadata Store persists the metadata for the elements (Self-Descriptions, Schemas and Trust Anchors). It allows to efficiently identify the relevant files in the file storage, to process the incoming requests.
+
+It is realized as relational database (e.g., PostgreSQL or MariaDB). Since all write requests are handled by the database, the transactional functionality guarantees the consistency of the data.
+
+
+=== Level 2: Description of the Submodules
+image::05_catalogue_components.png["Components of the Catalogue"]
+
+The catalogue implementation is structured into two main components _fc-service-server_ containing the logic to handle incoming requests, authorization and user management. The _fc-service-core_ components provide the individual functional building blocks for the federated catalogues features
+
+[cols="1a,2a" options="header"]
+|===
+| **Name** | **Responsibility**
+| Controller | Component handling and parsing the incoming requests.
+| Service | Component, controlling the workflows and interactions between the subcomponents.
+| Authorization | Handling the authorization, and user management in combination with the _Service_ and _Authentication_ component.
+| Authentication | This component stores the users and participant metadata.
+| Verification | Responsible for applied the defined verification rules on the Self-Descriptions. Also extracts the claims from the Verifiable Presentation (_Claim Extractor_). Also contains a component to periodically revalidate submitted Self-Descriptions (_Revalidation Service_).
+| Graph Store | Interface and logic for communicating with the Graph DB.
+
+| Schema Store
+a| Responsible for:
+* Verifying incoming schemas
+* Storing the schema files
+* Creating the unified schema graph
+* Handling the relation between Terms and Schemas
+* Handling the lifecycle and versioning of Schemas (persisted in the Metadata Store)
+
+| Validator Cache | Component to store cached public keys. The keys were checked and validated when they were retrieved. To avoid expired public keys in the cache the deprecation date is regularly checked.
+| Self-Description Store | Storing and retrieving of Self-Description files and handling the lifecycle and versioning of Self-Descriptions. Self-Descriptions are stored in the File Store, whereas metadata is kept in the Metadata Store.
+| Metadata Store | Database keeping all the required metadata for the modules. The Metadata Store is _owned_ by the _Store_ components. For separation, each component gets its own set of tables with no relation between them.
+| File Store | Storage system for persisting files (e.g., file system or object store/DB)
+|===
+
+
+==== Controller
+The Controller component is responsible for parsing external (HTTP) requests and handling the Authentication flow with the Authentication service. It receives the results from the Services, formats them as appropriate, and sends the formatted results back to the original requester.
+
+It is implemented as Spring Controllers.
+
+The interface is a REST API. All defined endpoints, are available in the corresponding openAPI https://gitlab.com/gaia-x/data-infrastructure-federation-services/cat/fc-service/-/blob/main/openapi/fc_openapi.yaml[definition].
+
+==== Service
+The service component is responsible to call and orchestrate the different _fc-service-core_ components. It contains the interaction workflows for all the provided endpoints.
+
+==== Authorization
+
+The authorization component is highly coupled with the _Controller_.  It ensures that endpoints only be can be called by users, having the correct role.
+
+Roles defined in the Catalogue:
+[options="header",cols="1,2"]
+|===
+| Role ID | Role Name
+| Ro-MU-CA | Catalogue Administrator
+| Ro-MU-A | Participant Administrator
+| Ro-SD-A | Self-Description Administrator
+| Ro-Pa-A | Participant User Administrator
+|===
+These roles do not form a linear hierarchy.
+
+User Ro-MU-CA is allowed to execute all actions.
+
+It is implemented with Spring Security.
+
+==== Core Services (fc-service-core)
+
+The Core Services receive calls from the service component and provide the building blocks to support the flows for the different operations.
+
+==== Verification Service
+
+The SD verification component checks if a Self-Description is correct from a semantic and cryptographic standpoint.
+
+The flow for verifying Self-Descriptions is described in more detail in section <<_verify_self_description>>.
+
+Notes:
+
+* The SD is checked as a whole. If the verification of the VCs fails, the verification of the whole SD fails.
+
+[source,java]
+----
+/**
+ * Validation Self-Description interface.
+ */
+@Service
+public interface VerificationService {
+
+  /**
+   * The function validates the Self-Description as JSON and tries to parse the json handed over.
+   *
+   * @param payload ContentAccessor to SD which should be syntactically validated.
+   * @return a Participant metadata validation result. If the validation fails, the reason explains the issue.
+   */
+  VerificationResultParticipant verifyParticipantSelfDescription(ContentAccessor payload) throws VerificationException;
+
+  /**
+   * The function validates the Self-Description as JSON and tries to parse the json handed over.
+   *
+   * @param payload ContentAccessor to SD which should be syntactically validated.
+   * @return a Verification result. If the verification fails, the reason explains the issue.
+   */
+  VerificationResultOffering verifyOfferingSelfDescription(ContentAccessor payload) throws VerificationException;
+
+  /**
+   * The function validates the Self-Description as JSON and tries to parse the json handed over.
+   *
+   * @param payload ContentAccessor to SD which should be syntactically validated.
+   * @return a Self-Description metadata validation result. If the validation fails, the reason explains the issue.
+   */
+  VerificationResult verifySelfDescription(ContentAccessor payload) throws VerificationException;
+
+  /**
+   * The function validates the Self-Description against the composite schema.
+   *
+   * @param payload ContentAccessor to SD which should be validated.
+   * @return the result of the semantic validation.
+   */
+  SemanticValidationResult verifySelfDescriptionAgainstCompositeSchema(ContentAccessor payload);
+
+  /**
+   * The function validates the Self-Description as JSON and tries to parse the json handed over.
+   *
+   * @param payload
+   * @param verifySemantics
+   * @param verifySchema
+   * @param verifySignatures
+   * @return
+   * @throws VerificationException
+   */
+  VerificationResult verifySelfDescription(ContentAccessor payload,
+      boolean verifySemantics, boolean verifySchema, boolean verifySignatures) throws VerificationException;
+
+  /**
+   * Extract claims from the given payload. This does not do any validation of the payload.
+   *
+   * @param payload The payload to extract claims from.
+   * @return The list of extracted claims.
+   */
+  List<SdClaim> extractClaims(ContentAccessor payload);
+}
+----
+
+
+===== Revalidation Service
+
+This component periodically revalidates existing Self-Descriptions. It checks if the signatures are still valid (e.g. not expired or referencing DID is still available). If the validation of a Self-Description fails, it's either set to state _deprecated_ or _eol_. This will remove the Self-Description from the Graph Database.
+
+Semantic revalidation is not needed here. It is done every time a new Schema is added.
+
+===== Claim Extractor
+
+This component is used by the _Verification Service_ to extract Claims from Self-Descriptions. Those claims are returned by the _Verification Service_ in the _Verification Result_.
+
+==== Graph Store
+
+The Graph Store is the interface for interacting with the Graph Database. It receives claims (extracted from Self-Descriptions) and adds them to the graph database. The Graph Database only contains claims from active Self-Descriptions and offers an openCypher query interface. External ontologies are not queried when processing requests.
+
+[source,java]
+----
+/**
+ * Defines the required functions to add, query, update and delete active claims extracted from self-descriptions
+ */
+public interface GraphStore {
+
+
+    /**
+     * Pushes set of claims to the Graph DB. The set of claims are list of claim
+     * objects containing subject, predicate and object similar to the form of n-triples
+     * format stored in individual strings.
+     *
+     * @param sdClaimList List of claims to be added to the Graph DB.
+     * @param credentialSubject contains a self-description unique identifier
+     */
+    void addClaims(List<SdClaim> sdClaimList, String credentialSubject);
+
+    /**
+     * Deletes all claims in the Graph DB of a given self-description
+     * @param credentialSubject contains a self-description unique identifier
+     */
+    void deleteClaims(String credentialSubject);
+
+    /**
+     * Query the graph when Cypher query is passed in query object and this
+     * returns list of Maps with key value pairs as a result.
+     *
+     * @param sdQuery is the query to be executed
+     * @return List of Maps
+     */
+    PaginatedResults<Map<String, Object>> queryData(GraphQuery sdQuery);
+
+}
+----
+
+
+==== Self-Description Store
+
+The Self-Description Store is responsible for storing Self-Description files (whole files, not individual VCs) and their metadata.
+When handling a write request, it first stores the metadata in the Metadata Store, then the claims are added to the Graph database and finally the file is stored in the File Store. A transaction ensures, that the stored data is consistent.
+
+[source,java]
+----
+/**
+ * A store for storing and retrieving self-description meta data objects.
+ *
+ * @author hylke
+ * @author j_reuter
+ */
+public interface SelfDescriptionStore {
+  /**
+   * Fetch a self-description file by its hash value.
+   *
+   * @param hash The hash value that identifies the self-description meta data.
+   * @return The self-description file.
+   */
+  ContentAccessor getSDFileByHash(String hash);
+
+  /**
+   * Fetch a self-description and its meta data by its hash value.
+   *
+   * @param hash The hash value that identifies the self-description meta data.
+   * @return The self-description meta data object with the specified hash value.
+   */
+  SelfDescriptionMetadata getByHash(String hash);
+
+  /**
+   * Fetch all self-descriptions that match the filter parameters.
+   *
+   * @param filter The filter to match all self-descriptions against.
+   * @param withMeta flax indicating the full metaData of the SD should be loaded instead of just the hash.
+   * @param withContent flag indicating the content of the SelfDescription should also be returned.
+   * @return List of all self-description meta data objects that match the specified filter.
+   */
+  PaginatedResults<SelfDescriptionMetadata> getByFilter(SdFilter filter, boolean withMeta, boolean withContent);
+
+  /**
+   * Store the given self-description.
+   *
+   * @param selfDescription       The self-description to store.
+   * @param sdVerificationResults The results of the verification of the
+   *                              self-description.
+   */
+  void storeSelfDescription(SelfDescriptionMetadata selfDescription, VerificationResult sdVerificationResults);
+
+  /**
+   * Change the life cycle status of the self-description with the given hash.
+   *
+   * @param hash         The hash of the self-description to work on.
+   * @param targetStatus The new status.
+   */
+  void changeLifeCycleStatus(String hash, SelfDescriptionStatus targetStatus);
+
+  /**
+   * Remove the self-description with the given hash from the store.
+   *
+   * @param hash The hash of the self-description to work on.
+   */
+  void deleteSelfDescription(String hash);
+
+  /**
+   * Invalidate expired Self-descriptions in the store.
+   *
+   * @return Number of expired Self-descriptions found.
+   */
+  int invalidateSelfDescriptions();
+
+  /**
+   * Get "count" hashes of active self-descriptions, ordered by sdhash, after
+   * the given hash. Chunking is done using:
+   * <pre>hashtext(sdhash) % chunks = chunkId</pre>
+   *
+   * @param afterHash The last hash of the previous batch.
+   * @param count the number of hashes to retrieve.
+   * @param chunks the number of chunks to subdivide hashes into.
+   * @param chunkId the 0-based id of the chunk to get.
+   * @return the list of hashes coming after the hash "afterHash", odered by
+   * hash.
+   */
+  List<String> getActiveSdHashes(String afterHash, int count, int chunks, int chunkId);
+
+}
+
+
+/**
+ * Filter parameters for searching self-description meta data. If multiple items
+ * are present, they are combined with an 'AND' semantic.
+ */
+public class SdFilter {
+
+  /**
+   * Start time for the time range filter when the self-description was uploaded
+   * to the catalogue.
+   */
+  private Instant uploadTimeStart;
+
+  /**
+   * End time for the time range filter when the self-description was uploaded to
+   * the catalogue.
+   */
+  private Instant uploadTimeEnd;
+
+  /**
+   * Start time for the time range filter when the status of the self-description
+   * was last changed in the catalogue.
+   */
+  private Instant statusTimeStart;
+
+  /**
+   * End time for the time range filter when the status of the self-description
+   * was last changed in the catalogue.
+   */
+  private Instant statusTimeEnd;
+
+  /**
+   * Filter for the issuer of the self-description. This is the unique ID
+   * (credentialSubject) of the Participant that has prepared the
+   * self-description.
+   */
+  private List<String> issuers;
+
+  /**
+   * Filter for a validator of the self-description. This is the unique ID
+   * (credentialSubject) of the Participant that validated (part of) the
+   * self-description.
+   */
+  private List<String> validators;
+
+  /**
+   * Filter for the status of the self-description.
+   */
+  private List<SelfDescriptionStatus> statuses;
+
+  /**
+   * Filter for a id/credentialSubject of the self-description.
+   */
+  private List<String> ids;
+
+  /**
+   * Filter for a hash of the self-description.
+   */
+  private List<String> hashes;
+
+  /**
+   * The offset to start returning results when applying this filter.
+   */
+  private int offset;
+
+  /**
+   * Maximum number of results to return when applying this filter. When set to 0,
+   * no limit applies.
+   */
+  private int limit;
+
+  /**
+   * Sets the upload time range that the filter will check for a self-description
+   * record to match. The upload time specifies when the self-description was
+   * uploaded to the catalogue. Start time and end time must be either both
+   * {@code null} or both non-{@code null}. Note: For not imposing any upper limit
+   * in time, {@code Instant.MAX} is <em>not</em> usable, since Hibernate will not
+   * accept this value and throw an exception.
+   *
+   * @param uploadTimeStart Start time of the time range that this filter will
+   *                        check for a self-description record to match.
+   * @param uploadTimeEnd   End time of the time range that this filter will check
+   *                        for a self-description record to match.
+   * @throws IllegalArgumentException If either start time or end time is
+   *                                  {@code null}, while the other is
+   *                                  non-{@code null}.
+   */
+  public void setUploadTimeRange(final Instant uploadTimeStart, final Instant uploadTimeEnd);
+
+  /**
+   * Sets the status time range that the filter will check for a self-description
+   * record to match. The status time specifies when the self-description was last
+   * changed in the catalogue. Start time and end time must be either both
+   * {@code null} or both non-{@code null}. Note: For not imposing any upper limit
+   * in time, {@code Instant.MAX} is <em>not</em> usable, since Hibernate will not
+   * accept this value and throw an exception.
+   *
+   * @param statusTimeStart Start time of the time range that this filter will
+   *                        check for a self-description record to match.
+   * @param statusTimeEnd   End time of the time range that this filter will check
+   *                        for a self-description record to match.
+   */
+  public void setStatusTimeRange(final Instant statusTimeStart, final Instant statusTimeEnd);
+}
+----
+
+The Self-Description metadata is stored in the metadata store, using the following data model:
+
+
+image:05_er_sdfile.png[ER Diagram representing a Self-Description]
+////
+This is the source code for the figure above. Directly added the figure due to a bug in mmdc
+[mermaid, width=2000]
+....
+erDiagram
+    SDFILE {
+        VARCHAR sdhash
+        VARCHAR subjectid
+        VARCHAR issuer
+        TIMESTAMP uploadtime
+        TIMESTAMP statustime
+        TIMESTAMP expirationtime
+        CLOB content
+        VARCHAR[] validators
+    }
+....
+////
+
+==== Schema Management Store
+
+The Schema Management Store is responsible for storing schema files and their metadata. It also supports the verification of schemas, as well as the possibility to generate the composite schema (union of all schemas).
+
+When submitting (add, replace) a schema, the following verification steps will happen:
+
+* For ontologies:
+    ** Check that ontology IRI is present and valid (`SD-Sch-NF-01`)
+    ** Check that ontology doesn't define a term (class, property or individual) that is already present. This is only allowed if the ontology IRI of the updated ontology is the same as the ontology that initially defined the term. (`SD-Sch-NF-03`)
+    ** An Identifier will be extracted from the schema during the analysis process
+* For shape graphs:
+    ** Check if the file has the correct syntax.
+    ** Check that there is no shape graph that already defines shapes with the same identifiers (`SD-Sch-NF-03`).
+    ** The extractedId will be set to null during schema analysis. A generated Id will be added in the add schema process
+
+* For SKOS:
+    ** Check if the file has the correct syntax.
+    ** Check that the terms (i.e., concepts) defined in the file are not defined yet (`SD-Sch-NF-03`).
+    ** An Identifier will be extracted from the schema during the analysis process
+
+
+[source,java]
+----
+public interface SchemaStore {
+
+  /**
+   * The different types of schema.
+   *
+   */
+  public enum SchemaType {
+    ONTOLOGY,
+    SHAPE,
+    VOCABULARY
+  }
+
+  /**
+   * Initialise the default Gaia-X schemas, if the schema store is still empty.
+   * If there are already schemas in the store, calling this method will do
+   * nothing.
+   */
+  public void initializeDefaultSchemas();
+
+  /**
+   * Verify if a given schema is syntactically correct.
+   *
+   * @param schema The schema data to verify. The content can be SHACL (ttl),
+   * vocabulary (SKOS) or ontology (owl).
+   * @return TRUE if the schema is syntactically valid.
+   */
+  boolean verifySchema(ContentAccessor schema);
+
+  /**
+   * Store a schema after has been successfully verified for its type and
+   * syntax.
+   *
+   * @param schema The schema content to be stored.
+   * @return The internal identifier of the Schema.
+   */
+  String addSchema(ContentAccessor schema);
+
+  /**
+   * Update the schema with the given identifier.
+   *
+   * @param identifier The identifier of the schema to update.
+   * @param schema The content to replace the schema with.
+   */
+  void updateSchema(String identifier, ContentAccessor schema);
+
+  /**
+   * Delete the schema with the given identifier.
+   *
+   * @param identifier The identifier of the schema to delete.
+   */
+  void deleteSchema(String identifier);
+
+  /**
+   * Get the identifiers of all schemas, sorted by schema type.
+   *
+   * @return the identifiers of all schemas, sorted by schema type.
+   */
+  Map<SchemaType, List<String>> getSchemaList();
+
+  /**
+   * Get the content of the schema with the given identifier.
+   *
+   * @param identifier The identifier of the schema to return.
+   * @return The schema content.
+   */
+  ContentAccessor getSchema(String identifier);
+
+  /**
+   * Get the schemas that defines the given term, grouped by schema type.
+   *
+   * @param termURI The term to get the defining schemas for.
+   * @return the identifiers of the defining schemas, sorted by schema type.
+   */
+  Map<SchemaType, List<String>> getSchemasForTerm(String termURI);
+
+  /**
+   * Get the union schema.
+   *
+   * @param schemaType The schema type, for which the composite schema should be
+   * returned.
+   * @return The union RDF graph.
+   */
+  ContentAccessor getCompositeSchema(SchemaType schemaType);
+}
+----
+
+The schema metadata is stored in the metadata store, using the following data model:
+
+[mermaid, width=2000]
+....
+erDiagram
+    SCHEMAFILE {
+        VARCHAR schemaid
+        VARCHAR namehash
+        TIMESTAMP uploadtime
+        TIMESTAMP updatetime
+        INTEGER type
+        CLOB content
+    }
+
+    SCHEMATERM {
+        VARCHAR term
+        VARCAHR schemaid
+    }
+
+    REVALIDATORCHUNK {
+        INTEGER chunkid
+        TIMESTAMP lastcheck
+    }
+
+    SCHEMAFILE || -- o{ SCHEMATERM: defines
+....
+
+==== Validator Cache
+
+The Validator Cache is responsible for caching Validator keys so they do not need to be downloaded each time.
+It periodically checks the expiration dates of signing keys.
+
+Interface: Receives request from the SD-Verification component.
+
+[source,java]
+----
+/**
+ * Caches Validator keys so they do not need to be downloaded each time.
+ */
+public interface ValidatorCache {
+
+  /**
+   * Add the given validator to the cache.
+   *
+   * @param validator The validator to add to the cache.
+   */
+  void addToCache(Validator validator);
+
+  /**
+   * Search for a validator with the given DID.
+   *
+   * @param didURI The DID of the requested validator.
+   * @return the requested validator, or null if it does not exist.
+   */
+  Validator getFromCache(String didURI);
+
+  /**
+   * Remove the validator with the given DID from the cache.
+   *
+   * @param didURI the DID of the validator to remove.
+   */
+  void removeFromCache(String didURI);
+
+  /**
+   * Removed expired validators from the cache.
+   *
+   * @return the number of deleted validators.
+   */
+  int expireValidators();
+}
+
+----
+
+The Validator Cache is stored in the metadata store, using the following data model:
+
+[mermaid, width=2000]
+....
+erDiagram
+    VALIDATORCACHE {
+        VARCHAR diduri
+        CLOB publickey
+        TIMESTAMP expirationtime
+    }
+
+....
+
+=== Level 3: Shared data structures
+
+==== VerificationResults
+
+Verification results are slightly different depending on whether a Participant Self-Description or a Offering Self-Description is verified.
+
+[source,java]
+----
+
+public class VerificationResult {
+
+  private Instant verificationTimestamp;
+
+  private String lifecycleStatus;
+
+  private String issuer;
+
+  private Instant issuedDateTime;
+
+  private List<String> validatorDids = new ArrayList<>();
+}
+
+/**
+ * POJO Class for holding verification results specific to Offerings.
+ */
+class VerificationResultsOffering extends VerificationResults {
+}
+
+/**
+ * POJO Class for holding verification results specific to Participants.
+ */
+class VerificationResultsParticipant extends VerificationResults {
+  /**
+   * The Name of the Participant.
+   */
+  private String participantName;
+  /**
+   * The public key of the participant.
+   */
+  private String participantPublicKey;
+}
+----
+
+Depending on the type of Self-Description, the Participant ID that has to be checked against the user who uploads the Self-Description, is stored in different locations.
+If the Self-Description is a Service Offering, the ID is stored in the `issuer` variable. If the Self-Description is a Participant, the ID is stored in the `id` variable.
+
+==== Claim
+
+[source,java]
+----
+/**
+ * POJO Class for holding a claim.
+ */
+public class SdClaim {
+
+    private String subject;
+    private String predicate;
+    private String object;
+
+    public SdClaim(String subject, String predicate, String object) {
+        this.subject = subject;
+        this.predicate = predicate;
+        this.object = object;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public String getPredicate() {
+        return predicate;
+    }
+
+    public String getObject() {
+        return object;
+    }
+}
+----
+
+
+==== Validator
+
+[source,java]
+----
+/**
+ * POJO Class for holding the validators, that signed the Self-Description.
+ */
+public class Validator {
+    private String didURI;
+
+    private String publicKey;
+
+    private Instant expirationDate;
+}
+----
+
+
+==== ContentAccessor
+
+[source,java]
+----
+/**
+ * Accessor class for passing SelfDescription or Schema content. Implementations
+ * may use lazy-loading to improve memory use.
+ */
+interface ContentAccessor {
+
+  /**
+   * Returns the content as a string.
+   *
+   * @return the content as a string.
+   */
+  String getContentAsString();
+
+  /**
+   * Returns the content as a stream.
+   *
+   * @return the content as a stream
+   */
+  InputStream getContentAsStream();
+
+}
+----
+
+==== SelfDescriptionMetadata
+
+[source,java]
+----
+enum LifeCycleStatus {
+    ACTIVE,
+    DEPRECATED,
+    END_OF_LIFE,
+    REVOKED
+}
+----
+
+
+[source,java]
+----
+/**
+ * SelfDescription
+ */
+public class SelfDescription {
+
+  private String sdHash;
+
+  private String id;
+
+  private SelfDescriptionStatus status;
+
+  private String issuer;
+
+  private List<String> validatorDids;
+
+  private Instant uploadDatetime;
+
+  private Instant statusDatetime;
+}
+
+/**
+ * Class for handling the metadata of a Self-Description, and optionally a
+ * reference to a content accessor.
+ */
+public class SelfDescriptionMetadata extends SelfDescription {
+
+  /**
+   * A reference to the Self-Description content.
+   */
+  private ContentAccessor selfDescription;
+
+}
+----
+
+==== ParticipantMetadata
+
+[source,java]
+----
+/**
+ * Participant
+ */
+public class Participant {
+
+  private String id;
+
+  private String name;
+
+  private String publicKey;
+
+  private String selfDescription;
+}
+
+/**
+ * POJO Class for holding Participant meta data.
+ */
+class ParticipantMetadata extends Participant{
+
+    private String sdHash;
+}
+----
+
