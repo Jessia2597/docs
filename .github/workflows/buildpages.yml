@@ -7,6 +7,10 @@ on:
     branches:
       - gh-pages  # <<< NUR bei Push/Merge auf gh-pages Branch
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   build-all-mkdocs:
     runs-on: ubuntu-latest
