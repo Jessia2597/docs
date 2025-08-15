@@ -5,7 +5,7 @@ name: Build all MkDocs projects into /docs
 on:
   push:
     branches:
-      - gh-pages  # <<< NUR bei Push/Merge auf gh-pages Branch
+      - main  # <<< NUR bei Push/Merge auf gh-pages Branch
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout main branch
         uses: actions/checkout@v4
 
       - name: Set up Python 3.8
@@ -35,7 +35,7 @@ jobs:
             echo "Rendering $template in $dir..."
             jinja2 "$template" > "$dir/mkdocs.yml"
           done
-          
+
       - name: Build all MkDocs projects
         run: |
           mkdir -p docs
