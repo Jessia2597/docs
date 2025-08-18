@@ -30,10 +30,17 @@ jobs:
       - name: Render mkdocs.yml from templates
         run: |
           # Find all .j2 MkDocs templates and render them to mkdocs.yml
+          for template in $(find . -name "mkdocs.yml.j2"); do
+            dir=$(dirname "$template")
+            echo "Rendering $template in $template -> $dir/mkdocs.yml"
+            jinja2 "$template" > "$dir/mkdocs.yml"
+          done
+
+          # PDF configs (optional, not used for site build)
           for template in $(find . -name "mkdocs.pdf.yml.j2"); do
             dir=$(dirname "$template")
-            echo "Rendering $template in $dir..."
-            jinja2 "$template" > "$dir/mkdocs.yml"
+            echo "Rendering PDF template $template -> $dir/mkdocs.pdf.yml"
+            jinja2 "$template" > "$dir/mkdocs.pdf.yml"
           done
 
       - name: Build all MkDocs projects
