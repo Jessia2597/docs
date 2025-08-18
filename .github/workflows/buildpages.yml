@@ -61,6 +61,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Switch to build-pages branch
+          git fetch origin build-pages
+          git checkout build-pages
+
+          # Remove old contents
+          git rm -rf . 
+
+          # Copy new site files
+          cp -r docs/* .
+ 
           git config user.name "Jessia2597"
           git config user.email "jessia.joby@eco.de"
 
@@ -70,5 +80,5 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "Update built MkDocs documentation"
-            git push origin gh-pages
+            git push origin build-pages
           fi
