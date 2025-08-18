@@ -8,8 +8,7 @@ on:
       - main  # <<< NUR bei Push/Merge auf gh-pages Branch
 
 permissions:
-  contents: read
-  actions: write
+  contents: write
 
 jobs:
   build-all-mkdocs:
