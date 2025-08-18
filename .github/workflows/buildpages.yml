@@ -28,11 +28,28 @@ jobs:
 
       - name: Render mkdocs.yml from templates
         run: |
-          # Find all .j2 MkDocs templates and render them to mkdocs.yml
-          for template in $(find . -name "mkdocs.yml.j2"); do
-            dir=$(dirname "$template")
-            echo "Rendering $template in $template -> $dir/mkdocs.yml"
-            jinja2 "$template" > "$dir/mkdocs.yml"
+          echo "Checking for xfsc-spec-1 mkdocs.yml.j2..."
+          if [ -f "./xfsc-spec-1/mkdocs.yml.j2" ]; then
+              echo "Found xfsc-spec-1/mkdocs.yml.j2"
+          else
+              echo "xfsc-spec-1/mkdocs.yml.j2 not found!"
+          fi
+
+          echo "Rendering xfsc-spec-1 mkdocs.yml..."
+          jinja2 ./xfsc-spec-1/mkdocs.yml.j2 > ./xfsc-spec-1/mkdocs.yml
+
+          if [ -f "./xfsc-spec-1/mkdocs.yml" ]; then
+              echo "✅ xfsc-spec-1/mkdocs.yml successfully generated!"
+              head -n 10 ./xfsc-spec-1/mkdocs.yml
+          else
+              echo "❌ Failed to generate xfsc-spec-1/mkdocs.yml"
+          fi
+
+          # Render all other mkdocs.yml.j2 files
+          for template in $(find . -name "mkdocs.yml.j2" ! -path "./xfsc-spec-1/mkdocs.yml.j2"); do
+              dir=$(dirname "$template")
+              echo "Rendering $template -> $dir/mkdocs.yml"
+              jinja2 "$template" > "$dir/mkdocs.yml"
           done
 
           # PDF configs (optional, not used for site build)
@@ -54,6 +71,15 @@ jobs:
             echo "Building MkDocs project in $dir..."
 
             mkdocs build --clean --site-dir "../docs/$name" -f "$mkdocs_file"
+          
+          echo "Checking if docs/xfsc-spec-1 exists after build..."
+          if [ -d "./docs/xfsc-spec-1" ]; then
+              echo "xfsc-spec-1 site built into docs/xfsc-spec-1/"
+              ls -R ./docs/xfsc-spec-1 | head -n 20
+          else
+              echo "xfsc-spec-1 docs not found in docs/"
+          fi
+
           done
           
       - name: Commit and push docs folder
