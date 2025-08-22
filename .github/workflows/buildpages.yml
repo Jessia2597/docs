@@ -1,11 +1,11 @@
 # .github/workflows/build-mkdocs-folders.yml
 
-name: Build all MkDocs projects into /docs
+name: Build all MkDocs projects into /docs folder
 
 on:
   push:
     branches:
-      - *  # <<< NUR bei Push/Merge auf gh-pages Branch
+      - main # <<< NUR bei Push/Merge auf gh-pages Branch
 
 permissions:
   contents: write
