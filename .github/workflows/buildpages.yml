@@ -5,7 +5,7 @@ name: Build all MkDocs projects into /docs
 on:
   push:
     branches:
-      - main  # <<< NUR bei Push/Merge auf gh-pages Branch
+      - *  # <<< NUR bei Push/Merge auf gh-pages Branch
 
 permissions:
   contents: write
