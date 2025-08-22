@@ -39,10 +39,10 @@ jobs:
           jinja2 ./xfsc-spec-1/mkdocs.yml.j2 > ./xfsc-spec-1/mkdocs.yml
 
           if [ -f "./xfsc-spec-1/mkdocs.yml" ]; then
-              echo "✅ xfsc-spec-1/mkdocs.yml successfully generated!"
+              echo "xfsc-spec-1/mkdocs.yml successfully generated!"
               head -n 10 ./xfsc-spec-1/mkdocs.yml
           else
-              echo "❌ Failed to generate xfsc-spec-1/mkdocs.yml"
+              echo "Failed to generate xfsc-spec-1/mkdocs.yml"
           fi
 
           # Render all other mkdocs.yml.j2 files
