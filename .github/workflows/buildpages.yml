@@ -104,9 +104,9 @@ jobs:
 
           git add docs
           
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
+          # if git diff --cached --quiet; then
+          #   echo "No changes to commit."
+          # else
             git commit -m "Update built MkDocs documentation"
             git push origin build-pages
-          fi
+          # fi
