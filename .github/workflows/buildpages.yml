@@ -81,6 +81,9 @@ jobs:
           fi
 
           done
+      
+      - name: Debug branch
+        run: echo "Workflow triggered on branch $GITHUB_REF"
           
       - name: Commit and push docs folder
         env:
