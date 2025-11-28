@@ -10,4 +10,4 @@ The XFSC Federated Catalogue (CAT) manages metadata objects (typically credentia
 
 This enhancement of the CAT modularizes its verification of credentials against trust anchors and generalizes its management of metadata objects beyond the former focus on credentials; thus, it will also be able to function as a Template Repository for the FACIS Digital Contract Service (DCS).
 
-The enhanced specification can be found here : [PDF](https://github.com/Jessia2597/docs/blob/main/federated-catalogue/src/docs/CAT%20Enhancement/CAT_Enhancement_Specifications%20v1.0.pdf)
+The enhanced specification document can be found here : [PDF](https://github.com/Jessia2597/docs/blob/main/federated-catalogue/src/docs/CAT%20Enhancement/CAT_Enhancement_Specifications%20v1.0.pdf)
